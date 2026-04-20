@@ -1,0 +1,5 @@
+{
+  "name": "RegExtract Studio",
+  "description": "Nástroj pre extrakciu textov pre hry založený na regulárnych výrazoch. Umožňuje manuálne generovanie Regexu pre komplexné formáty, značenie a hromadné skladanie súborov na preklad.",
+  "requestFramePermissions": []
+}
