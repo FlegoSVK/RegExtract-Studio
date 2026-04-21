@@ -15,51 +15,60 @@ Bez ohľadu na zložitosť súboru sa aplikácia pozerá na dáta cez optiku **R
 - Používateľ načíta vzorový súbor a priamo myšou si označí, ktorú časť riadku je potrebné "preložiť" a ktorú "ignorovať".
 - **Zelená (Text na preklad):** Text sa označí ako cieľový na preklad (`(.*?)`).
 - **Oranžová (Technický parameter):** Extrémne užitočné na dynamické IDčka (napr. `"msg_001"`). Označením povieš generátoru, aby na tomto mieste na syntax netrval a použil wildcard `.*?`.
-- Každý iný znak v riadku sa generátorom bezpečne „escapne“ a aplikuje na celý súbor. 
 - Systém bezpečne odfiltruje kód a pre Vás sa otvoria len čisté vety a nadpisy.
 
-### 2. Multi-skupinové riadky (Viacero prekladov v jednom riadku)
+### 2. Manuálna Analýza Unity (I2Languages)
+- Špeciálny modul určený pre komplexné Unity textové exporty (napr. platforma I2Localization).
+- **Cieľový Index Jazyka:** Na rozdiel od Regexu tu stačí zadať číselný index (0, 1, 2...) jazyka, ktorého dáta chcete zo súboru vyextrahovať.
+- Algoritmus automaticky analyzuje vnorenú štruktúru `TermData` a `Languages`, pričom bezpečne extrahuje stringy z `data` polí bez poškodenia zvyšku súboru.
+
+### 3. Pokročilé CSV / TSV parsovanie
+- Podpora pre štandardné oddeľovače (čiarka, stredník, tabulátor).
+- **Viacriadkové dáta:** Podpora polí, ktoré obsahujú zalomenia riadkov (rešpektuje úvodzovky).
+- **Escape Character:** Možnosť nastaviť únikový znak (najčastejšie `\`) pre korektné načítanie textov so špeciálnymi znakmi.
+
+### 4. Inteligentné UI a Tooltipy
+- Celé rozhranie aplikácie je vybavené pomocnými textami (tooltips), ktoré sa zobrazia po **nabehnutí kurzorom** na akékoľvek tlačidlo alebo funkciu.
+- Náhľad analýzy zdrojového súboru zobrazuje až **200 riadkov** pre okamžitú vizuálnu kontrolu úspešnosti extrakcie.
+
+### 5. Multi-skupinové riadky (Viacero prekladov v jednom riadku)
 Máte riadok tvorený štýlom `<D_100>Ahoj</D><D_101>Svet</D>`? Žiadny problém! Označte slovo "Ahoj" ako text na preklad, "Svet" ako text na preklad a čísla 100/101 ako technickú časť. Generátor to spracuje.
 
-### 3. Vlastné Profily Hry
-Po zostavení Regexu si aplikácia dokáže Regex a Názov hry uložiť do LocalStorage prehliadača. Budúce aktualizácie hry spracujete dvoma kliknutiami.
+### 6. Vlastné Profily Hry
+Po zostavení konfigurácie (Regex, CSV nastavenia alebo Unity index) si aplikácia dokáže Profil a Názov hry uložiť do LocalStorage prehliadača. Budúce aktualizácie hry spracujete dvoma kliknutiami.
 
-### 4. Správa Projektov (Mapovacie súbory)
+### 7. Správa Projektov (Mapovacie súbory)
 Za každým úspešným spracovaním získa užívateľ **Mapu projektu** `.map.json`. Je to vnútorný štruktúrny kompas aplikácie na poskladanie finálneho textu. Zároveň stiahnete **čistý text** `.txt` so samotnými vetami na preklad (po riadkoch).
 
-### 5. Hromadné Skladanie a Extrakcia (Batch Reassembly)
-Pre moderné hry zložené zo 100+ malých JSON/XML súborov môžete hromadne odovzdať balík súborov, aplikovať na nich pripravený Profil a ZIP súbor vám vypľuje hotové TXT + MAP dáta.
+### 8. Hromadné Skladanie a Extrakcia (Batch Reassembly)
+Pre moderné hry zložené zo 100+ súborov môžete hromadne odovzdať balík súborov, aplikovať na nich pripravený Profil a stiahnuť ZIP s hotovými TXT + MAP dátami.
 Na konci nahráte balíky preložených TXT a MAP nazad a stiahnete ZIP hotových preložených súborov hry!
 
-### 6. Bezpečnosť a Súkromie
-Od verzie 2.1 aplikácia **nepoužíva žiadne AI cloud api spracovanie**. Celý Regex engine bol napísaný nanovo s priamym behom v JS. Neodosielate útržky chránených hier (NDA) na cudzie servery.
+### 9. Bezpečnosť a Súkromie
+Aplikácia je **plne offline**. Celý parsovací engine beží priamo vo vašom prehliadači. Neodosielate útržky chránených hier (NDA) na žiadne servery.
 
 ---
 
 ## 🛠 Návod na použitie: Krok po kroku
 
 ### Získavanie Textu (Krok 1)
-1. Zvoľte **Nový preklad** (pre jeden súbor) alebo **Hromadné spracovanie**.
-2. Vyberte profil hry alebo prejdite do sekcie **Manuálna Analýza (Generátor)**.
-3. V Manuálnej Analýze vyberte vzorový súbor. Zobrazí sa vám až **1000 riadkov** aktuálneho formátu s pokročilým stránkovaním v spodnej aj vrchnej časti okna.
+1. Zvoľte **Nový preklad** alebo **Hromadné spracovanie**.
+2. Vyberte profil hry alebo použite jeden z generátorov (**Manuálna Analýza** alebo **Unity**).
+3. V Manuálnej Analýze vyberte vzorový súbor. Zobrazí sa vám riadky aktuálneho formátu s pokročilým stránkovaním.
 4. Myšou presvietite slovo/vetu a kliknite na "Označiť ako preklad" (zelená).
-5. (Voliteľné) Ak je niekde kľúč (napr. číslo riadku "012"), označte ho "Technická časť" (oranžová).
-6. Uistite sa, že ste neoznačili úvodzovky, čiarky, alebo `{"`.
-7. Stlačte **Vygenerovať Regex**. Predvyplní sa políčko Regexu.
-8. Nazvite Hru a kliknite **Spracovať súbor**.
+5. Stlačte **Vygenerovať Regex**. (Alebo pri Unity móde nastavte index jazyka).
+6. Nazvite Hru a kliknite **Spracovať súbor**.
 
 ### Fáza prekladu (Krok 2)
-1. Po presnom rozrezaní súboru Vám vyskočí okno exportu. Vidíte počet všetkých a preložiteľných riadkov. 
-2. Stlačte **Stiahnuť súbor prekladu (TXT)** a takisto **Stiahnuť Mapu projektu (JSON)**! Toto sú Vám dôležité artefakty. 
-3. Súbor `_clean_lines.txt` importujete do Vášho softvéru a pohodlne prekladáte. Nesmiete zmazať či zameniť počet riadkov! (Prázdne vety vo vývoji nezahadzujte, nechajte riadok prázdny).
+1. Stiahnite si **Čistý text (.txt)** a **Mapu (.json)**.
+2. Súbor `.txt` preložte v ľubovoľnom editore alebo CAT nástroji. Nesmiete meniť počet riadkov!
 
-### Skladanie zbraní (Krok 3)
-1. Aplikáciu si pokojne pozatvárajte. Prispôsobte sa Vášmu času.
-2. Vráťte sa k aplikácii (zvoľte príslušný projekt). 
-3. Do ľavého poľa vložte `moja_hra.map.json`.
-4. Do pravého poľa nahrajte ten istý, ale už Preložený text (Váš výstup z prekladača).
-5. Otvorí sa Diff checker! Krásne prehľadné riadky, Zelené svetlo kedy bol riadok zmenený z pôvodného. Prelistujte a ak ste spokojný...
-6. Kliknite na **Stiahnuť finálny súbor**. (Aplikácia ho navyše pomenuje rovnako ako sa volal originál!)
+### Skladanie finálneho súboru (Krok 3)
+1. Vráťte sa k aplikácii (zvoľte príslušný projekt alebo nahrajte mapu). 
+2. Do poľa nahrávania vložte Mapu a Váš preložený TXT.
+3. Diff preview vám ukáže zmeny. Skontrolujte zelené a červené highlighty.
+4. Kliknite na **Stiahnuť finálny súbor**.
+ (Aplikácia ho navyše pomenuje rovnako ako sa volal originál!)
 
 ---
 
