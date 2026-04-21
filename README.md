@@ -4,6 +4,7 @@
 **RegExtract Studio** je moderný, bezpečný a plne lokálny prehliadačový nástroj navrhnutý pre prekladateľov a lokalizátorov. Jeho primárnym cieľom je zjednodušiť náročný proces extrahovania textov z komplexných štruktúr (JSON, XML, CSV, INI, vlastné interné herné formáty) do čistých TXT súborov pre CAT (Computer-Assisted Translation) nástroje a strojové prekladače. Po preklade sa texty poskladajú naspäť do ich pôvodnej formy a štruktúry bez toho, aby bol narušený kód. 
 
 Celá mágia na pozadí je založená na inteligentnom lokálnom generátore regulárnych výrazov (Regex).
+<img width="1649" height="1246" alt="image" src="https://github.com/user-attachments/assets/64bace9d-eb02-41ba-90a1-bcb7f5667976" />
 
 ---
 
