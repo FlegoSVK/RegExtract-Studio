@@ -57,6 +57,8 @@ const App: React.FC = () => {
   const [csvTargetColumn, setCsvTargetColumn] = useState<number>(1);
   const [csvEscapeChar, setCsvEscapeChar] = useState<string>('\\');
   const [csvAllowMultiLine, setCsvAllowMultiLine] = useState<boolean>(true);
+  const [csvHeaderRowIndex, setCsvHeaderRowIndex] = useState<number>(0);
+  const [csvIsUnityTextAssetFormat, setCsvIsUnityTextAssetFormat] = useState<boolean>(false);
 
   // Unity Mode State
   const [isUnityMode, setIsUnityMode] = useState<boolean>(false);
@@ -118,6 +120,8 @@ const App: React.FC = () => {
           setCsvTargetColumn(config.targetColumn !== undefined ? config.targetColumn : 1);
           setCsvEscapeChar(config.escapeChar || '\\');
           setCsvAllowMultiLine(config.allowMultiLine !== undefined ? config.allowMultiLine : true);
+          setCsvHeaderRowIndex(config.headerRowIndex !== undefined ? config.headerRowIndex : 0);
+          setCsvIsUnityTextAssetFormat(config.isUnityTextAssetFormat !== undefined ? config.isUnityTextAssetFormat : false);
         } catch (e) {
           console.error("Failed to parse CSV config", e);
         }
@@ -146,7 +150,9 @@ const App: React.FC = () => {
         quoteChar: csvQuoteChar, 
         targetColumn: csvTargetColumn,
         escapeChar: csvEscapeChar,
-        allowMultiLine: csvAllowMultiLine
+        allowMultiLine: csvAllowMultiLine,
+        headerRowIndex: csvHeaderRowIndex,
+        isUnityTextAssetFormat: csvIsUnityTextAssetFormat
       })}`;
     } else if (isUnityMode) {
       finalRegex = `UNITY_CONFIG:${JSON.stringify({
@@ -447,7 +453,7 @@ const App: React.FC = () => {
 
     let finalRegex = regexPattern;
     if (isCsvMode) {
-      finalRegex = `CSV_CONFIG:${JSON.stringify({ delimiter: csvDelimiter, quoteChar: csvQuoteChar, targetColumn: csvTargetColumn, escapeChar: csvEscapeChar, allowMultiLine: csvAllowMultiLine })}`;
+      finalRegex = `CSV_CONFIG:${JSON.stringify({ delimiter: csvDelimiter, quoteChar: csvQuoteChar, targetColumn: csvTargetColumn, escapeChar: csvEscapeChar, allowMultiLine: csvAllowMultiLine, headerRowIndex: csvHeaderRowIndex, isUnityTextAssetFormat: csvIsUnityTextAssetFormat })}`;
     } else if (isUnityMode) {
       finalRegex = `UNITY_CONFIG:${JSON.stringify({ targetLanguageIndex: unityLanguageIndex })}`;
     }
@@ -478,7 +484,7 @@ const App: React.FC = () => {
   const handleBatchProcess = () => {
     let finalRegex = regexPattern;
     if (isCsvMode) {
-      finalRegex = `CSV_CONFIG:${JSON.stringify({ delimiter: csvDelimiter, quoteChar: csvQuoteChar, targetColumn: csvTargetColumn, escapeChar: csvEscapeChar, allowMultiLine: csvAllowMultiLine })}`;
+      finalRegex = `CSV_CONFIG:${JSON.stringify({ delimiter: csvDelimiter, quoteChar: csvQuoteChar, targetColumn: csvTargetColumn, escapeChar: csvEscapeChar, allowMultiLine: csvAllowMultiLine, headerRowIndex: csvHeaderRowIndex, isUnityTextAssetFormat: csvIsUnityTextAssetFormat })}`;
     } else if (isUnityMode) {
       finalRegex = `UNITY_CONFIG:${JSON.stringify({ targetLanguageIndex: unityLanguageIndex })}`;
     }
@@ -501,7 +507,7 @@ const App: React.FC = () => {
     if (!files || files.length === 0) return;
 
     const finalRegex = isCsvMode 
-      ? `CSV_CONFIG:${JSON.stringify({ delimiter: csvDelimiter, quoteChar: csvQuoteChar, targetColumn: csvTargetColumn })}`
+      ? `CSV_CONFIG:${JSON.stringify({ delimiter: csvDelimiter, quoteChar: csvQuoteChar, targetColumn: csvTargetColumn, escapeChar: csvEscapeChar, allowMultiLine: csvAllowMultiLine, headerRowIndex: csvHeaderRowIndex, isUnityTextAssetFormat: csvIsUnityTextAssetFormat })}`
       : regexPattern;
 
     try {
@@ -1105,6 +1111,16 @@ const App: React.FC = () => {
                             className="w-full bg-cyber-900 border border-cyber-700 rounded px-2 py-1.5 text-white font-mono text-sm focus:outline-none focus:border-cyber-accent"
                           />
                         </div>
+                        <div title="Riadok hlavičky (indexované od 0), ktorý sa nebude extrahovať a prekladať. Nastavte na 0 pre prvý riadok, alebo -1 ak CSV nemá hlavičku.">
+                          <label className="block text-xs text-gray-500 mb-1">Index hlavičky (od 0)</label>
+                          <input 
+                            type="number" 
+                            min="-1"
+                            value={csvHeaderRowIndex}
+                            onChange={(e) => setCsvHeaderRowIndex(parseInt(e.target.value) || 0)}
+                            className="w-full bg-cyber-900 border border-cyber-700 rounded px-2 py-1.5 text-white font-mono text-sm focus:outline-none focus:border-cyber-accent"
+                          />
+                        </div>
                         <div className="flex items-center gap-2 mt-4 ml-1" title="Zapnuté, ak sa v niektorom preklade nachádza viacriadkový text obklopený oddeľovacími znakmi">
                           <input 
                             type="checkbox" 
@@ -1113,6 +1129,15 @@ const App: React.FC = () => {
                             className="form-checkbox text-cyber-accent"
                           />
                           <label className="text-xs text-gray-400">Viacriadkové</label>
+                        </div>
+                        <div className="flex items-center gap-2 mt-4 ml-1 col-span-3" title='Unity "TextAsset Base" kompatibilita pre vnorenú CSV tabuľku v jednej línii vnútri atribútu (napr. m_Script="KEY,EN\r\nValue...")'>
+                          <input 
+                            type="checkbox" 
+                            checked={csvIsUnityTextAssetFormat}
+                            onChange={(e) => setCsvIsUnityTextAssetFormat(e.target.checked)}
+                            className="form-checkbox text-cyber-accent"
+                          />
+                          <label className="text-xs font-semibold text-cyber-accent">Rozpoznávať ako Unity TextAsset (m_Script)</label>
                         </div>
                       </div>
                     </div>

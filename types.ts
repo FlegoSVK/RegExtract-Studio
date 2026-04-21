@@ -6,6 +6,7 @@ export interface ParsedLine {
   text: string;   // The first text to translate (for backward compatibility)
   suffix: string; // The part after the last text
   csvRow?: string[]; // The parsed CSV row if applicable
+  embeddedCsv?: { data: string[][]; targetColumn: number; headerRowIndex?: number };
   parts?: { isTranslatable: boolean, text: string }[]; // All parts including technical and translatable
 }
 
@@ -15,6 +16,8 @@ export interface CsvConfig {
   targetColumn: number;
   escapeChar: string;
   allowMultiLine: boolean;
+  headerRowIndex?: number;
+  isUnityTextAssetFormat?: boolean;
 }
 
 export interface UnityConfig {

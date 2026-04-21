@@ -15,7 +15,7 @@ Bez ohľadu na zložitosť súboru sa aplikácia pozerá na dáta cez optiku **R
 - Používateľ načíta vzorový súbor a priamo myšou si označí, ktorú časť riadku je potrebné "preložiť" a ktorú "ignorovať".
 - **Zelená (Text na preklad):** Text sa označí ako cieľový na preklad (`(.*?)`).
 - **Oranžová (Technický parameter):** Extrémne užitočné na dynamické IDčka (napr. `"msg_001"`). Označením povieš generátoru, aby na tomto mieste na syntax netrval a použil wildcard `.*?`.
-- Systém bezpečne odfiltruje kód a pre Vás sa otvoria len čisté vety a nadpisy.
+- Systém bezpečne odfiltruje kód a pre Vás sa otvoria len čisté vety a nadpisy s **vysokou presnosťou** zachytávania vďaka inteligentnej detekcii okolitých medzier a špeciálnych znakov.
 
 ### 2. Manuálna Analýza Unity (I2Languages)
 - Špeciálny modul určený pre komplexné Unity textové exporty (napr. platforma I2Localization).
@@ -24,8 +24,10 @@ Bez ohľadu na zložitosť súboru sa aplikácia pozerá na dáta cez optiku **R
 
 ### 3. Pokročilé CSV / TSV parsovanie
 - Podpora pre štandardné oddeľovače (čiarka, stredník, tabulátor).
+- **Index hlavičky:** Možnosť vynechať z extrakcie a prekladu špecifický riadok hlavičky (napríklad nastaviť na 0 pre prvý riadok).
 - **Viacriadkové dáta:** Podpora polí, ktoré obsahujú zalomenia riadkov (rešpektuje úvodzovky).
 - **Escape Character:** Možnosť nastaviť únikový znak (najčastejšie `\`) pre korektné načítanie textov so špeciálnymi znakmi.
+- **Unity TextAsset (m_Script) sub-mód:** Unikátna funkcia pri ktorej sa dáta nachádzajú ako "vnorené CSV" vo vnútri jedinej textovej premennej (napr. vizuálny gigantický riadok escapovaný cez `\r\n`). Tento režim rozbije premennú na virtuálnu tabuľku, po riadkoch ju preloží a spätne poskladá do striktne jednej kóderskej riadky aj po nahratí prekladov!
 
 ### 4. Inteligentné UI a Tooltipy
 - Celé rozhranie aplikácie je vybavené pomocnými textami (tooltips), ktoré sa zobrazia po **nabehnutí kurzorom** na akékoľvek tlačidlo alebo funkciu.
@@ -82,4 +84,4 @@ Aplikácia je **plne offline**. Celý parsovací engine beží priamo vo vašom 
 
 ---
 **Vytvoril:** Flego  
-**Verzia:** 2.1 (RegExtract Studio Zero-Server)
+**Verzia:** 2.2 (RegExtract Studio Zero-Server)

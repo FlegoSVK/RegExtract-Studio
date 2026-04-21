@@ -90,6 +90,86 @@ export const parseFileContent = (content: string, fileName: string, regexPattern
       let delimiter = csvConfig.delimiter;
       if (delimiter === '\\t') delimiter = '\t';
 
+      if (csvConfig.isUnityTextAssetFormat) {
+          const rawLines = content.split(/\r?\n/);
+          const parsedLines: ParsedLine[] = [];
+          
+          let foundTextAssetProperty = false;
+
+          for (let i = 0; i < rawLines.length; i++) {
+              const line = rawLines[i];
+              // Support standard matching pattern for string properties with quotes holding potentially escaped newlines
+              const match = line.match(/^(\s*\d+\s+string\s+[a-zA-Z0-9_]+\s*=\s*")(.*)("\s*)$/);
+              
+              if (match) {
+                 foundTextAssetProperty = true;
+                 const prefix = match[1];
+                 const giantString = match[2];
+                 const suffix = match[3];
+                 
+                 // Un-escape literal \r\n explicitly inserted by Unity TextAsset 
+                 const unescapedString = giantString.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '\r');
+                 
+                 const parsed = Papa.parse<string[]>(unescapedString, {
+                     delimiter: delimiter,
+                     quoteChar: csvConfig.quoteChar,
+                     escapeChar: csvConfig.escapeChar,
+                     header: false,
+                     skipEmptyLines: false // We need to perfectly map structure!
+                 });
+                 
+                 const parts: { isTranslatable: boolean, text: string }[] = [];
+                 
+                 parsed.data.forEach((row, rowIndex) => {
+                     const isHeader = (csvConfig.headerRowIndex !== undefined && csvConfig.headerRowIndex >= 0 && rowIndex <= csvConfig.headerRowIndex);
+                     
+                     if (!isHeader && row.length > csvConfig.targetColumn) {
+                         const text = row[csvConfig.targetColumn];
+                         if (text && text.trim().length > 0) {
+                             parts.push({ isTranslatable: true, text });
+                         }
+                     }
+                 });
+                 
+                 parsedLines.push({
+                     id: i,
+                     originalContent: line,
+                     isTranslatable: parts.length > 0,
+                     prefix: prefix,
+                     text: '',
+                     suffix: suffix,
+                     parts: parts, 
+                     embeddedCsv: {
+                         data: parsed.data,
+                         targetColumn: csvConfig.targetColumn,
+                         headerRowIndex: csvConfig.headerRowIndex
+                     }
+                 });
+              } else {
+                  parsedLines.push({
+                      id: i,
+                      originalContent: line,
+                      isTranslatable: false,
+                      prefix: line,
+                      text: '',
+                      suffix: ''
+                  });
+              }
+          }
+          
+          if (!foundTextAssetProperty) {
+              console.warn("Parse WARNING: Unity TextAsset property regex matched no lines! Please verify file format.");
+          }
+
+          return {
+            fileName,
+            lines: parsedLines,
+            timestamp: Date.now(),
+            regexPattern,
+            csvConfig,
+          };
+      }
+
       const parsed = Papa.parse<string[]>(content, {
         delimiter: delimiter,
         quoteChar: csvConfig.quoteChar,
@@ -109,6 +189,18 @@ export const parseFileContent = (content: string, fileName: string, regexPattern
              suffix: '',
              csvRow: row,
            };
+        }
+
+        if (csvConfig.headerRowIndex !== undefined && csvConfig.headerRowIndex >= 0 && index <= csvConfig.headerRowIndex) {
+          return {
+            id: index,
+            originalContent: Papa.unparse([row], { delimiter: delimiter, quoteChar: csvConfig.quoteChar }),
+            isTranslatable: false,
+            prefix: '',
+            text: '',
+            suffix: '',
+            csvRow: row,
+          };
         }
 
         if (row.length > csvConfig.targetColumn) {
@@ -223,9 +315,52 @@ export const generateMergedFile = (projectMap: ProjectMap, translatedText: strin
   let translationIndex = 0;
 
   if (projectMap.csvConfig) {
-    const { delimiter, quoteChar, targetColumn } = projectMap.csvConfig;
+    const { delimiter, quoteChar, targetColumn, isUnityTextAssetFormat } = projectMap.csvConfig;
     let actualDelimiter = delimiter;
     if (actualDelimiter === '\\t') actualDelimiter = '\t';
+
+    if (isUnityTextAssetFormat) {
+      // Reconstruct the file line by line
+      return projectMap.lines.map(line => {
+        if (!line.embeddedCsv) {
+          return line.originalContent;
+        }
+
+        // We have an embedded CSV to reconstruct
+        const newData = line.embeddedCsv.data.map((row, rowIndex) => {
+          const isHeader = (line.embeddedCsv!.headerRowIndex !== undefined && line.embeddedCsv!.headerRowIndex >= 0 && rowIndex <= line.embeddedCsv!.headerRowIndex);
+          if (isHeader || row.length <= line.embeddedCsv!.targetColumn || row.length === 1 && row[0] === "") {
+            return row;
+          }
+
+          const existingText = row[line.embeddedCsv!.targetColumn];
+          if (!existingText || existingText.trim().length === 0) {
+            return row;
+          }
+
+          let translatedLineContent = existingText;
+          if (translationIndex < translatedLines.length) {
+            translatedLineContent = translatedLines[translationIndex].replace(/\\r/g, '\r').replace(/\\n/g, '\n');
+            translationIndex++;
+          }
+
+          const newRow = [...row];
+          newRow[line.embeddedCsv!.targetColumn] = translatedLineContent;
+          return newRow;
+        });
+
+        const unparsedEmbeddedCsv = Papa.unparse(newData, {
+          delimiter: actualDelimiter,
+          quoteChar: quoteChar,
+          newline: '\r\n' // Papa uses actual newlines \r\n, we will replace them with literal \\r\\n
+        });
+
+        // Convert the structural newlines created by unparse back into literal strings
+        const stringifiedCsv = unparsedEmbeddedCsv.replace(/\r?\n/g, '\\r\\n');
+        
+        return `${line.prefix}${stringifiedCsv}${line.suffix}`;
+      }).join('\r\n');
+    }
 
     const newData = projectMap.lines.map(line => {
       if (!line.isTranslatable || !line.csvRow) {
