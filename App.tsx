@@ -55,6 +55,12 @@ const App: React.FC = () => {
   const [csvDelimiter, setCsvDelimiter] = useState<string>(',');
   const [csvQuoteChar, setCsvQuoteChar] = useState<string>('"');
   const [csvTargetColumn, setCsvTargetColumn] = useState<number>(1);
+  const [csvEscapeChar, setCsvEscapeChar] = useState<string>('\\');
+  const [csvAllowMultiLine, setCsvAllowMultiLine] = useState<boolean>(true);
+
+  // Unity Mode State
+  const [isUnityMode, setIsUnityMode] = useState<boolean>(false);
+  const [unityLanguageIndex, setUnityLanguageIndex] = useState<number>(0);
 
   // File Selection State
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -104,25 +110,49 @@ const App: React.FC = () => {
       
       if (profile.regex.startsWith('CSV_CONFIG:')) {
         setIsCsvMode(true);
+        setIsUnityMode(false);
         try {
           const config = JSON.parse(profile.regex.substring('CSV_CONFIG:'.length));
           setCsvDelimiter(config.delimiter || ',');
           setCsvQuoteChar(config.quoteChar || '"');
           setCsvTargetColumn(config.targetColumn !== undefined ? config.targetColumn : 1);
+          setCsvEscapeChar(config.escapeChar || '\\');
+          setCsvAllowMultiLine(config.allowMultiLine !== undefined ? config.allowMultiLine : true);
         } catch (e) {
           console.error("Failed to parse CSV config", e);
         }
+      } else if (profile.regex.startsWith('UNITY_CONFIG:')) {
+        setIsCsvMode(false);
+        setIsUnityMode(true);
+        try {
+          const config = JSON.parse(profile.regex.substring('UNITY_CONFIG:'.length));
+          setUnityLanguageIndex(config.targetLanguageIndex !== undefined ? config.targetLanguageIndex : 0);
+        } catch (e) {
+          console.error("Failed to parse Unity config", e);
+        }
       } else {
         setIsCsvMode(false);
+        setIsUnityMode(false);
         setRegexPattern(profile.regex);
       }
     }
   };
 
   const saveCustomProfile = (silent = false) => {
-    const finalRegex = isCsvMode 
-      ? `CSV_CONFIG:${JSON.stringify({ delimiter: csvDelimiter, quoteChar: csvQuoteChar, targetColumn: csvTargetColumn })}`
-      : regexPattern;
+    let finalRegex = regexPattern;
+    if (isCsvMode) {
+      finalRegex = `CSV_CONFIG:${JSON.stringify({ 
+        delimiter: csvDelimiter, 
+        quoteChar: csvQuoteChar, 
+        targetColumn: csvTargetColumn,
+        escapeChar: csvEscapeChar,
+        allowMultiLine: csvAllowMultiLine
+      })}`;
+    } else if (isUnityMode) {
+      finalRegex = `UNITY_CONFIG:${JSON.stringify({
+        targetLanguageIndex: unityLanguageIndex
+      })}`;
+    }
 
     if (!gameName || !finalRegex) {
       if (!silent) alert("Zadajte názov hry a konfiguráciu pre uloženie profilu.");
@@ -415,11 +445,14 @@ const App: React.FC = () => {
   const processSelectedFile = () => {
     if (!selectedFile) return;
 
-    const finalRegex = isCsvMode 
-      ? `CSV_CONFIG:${JSON.stringify({ delimiter: csvDelimiter, quoteChar: csvQuoteChar, targetColumn: csvTargetColumn })}`
-      : regexPattern;
+    let finalRegex = regexPattern;
+    if (isCsvMode) {
+      finalRegex = `CSV_CONFIG:${JSON.stringify({ delimiter: csvDelimiter, quoteChar: csvQuoteChar, targetColumn: csvTargetColumn, escapeChar: csvEscapeChar, allowMultiLine: csvAllowMultiLine })}`;
+    } else if (isUnityMode) {
+      finalRegex = `UNITY_CONFIG:${JSON.stringify({ targetLanguageIndex: unityLanguageIndex })}`;
+    }
 
-    if (!isCsvMode && !regexPattern) {
+    if (!isCsvMode && !isUnityMode && !regexPattern) {
       alert("Zadajte regulárny výraz pred spracovaním súboru.");
       return;
     }
@@ -443,11 +476,14 @@ const App: React.FC = () => {
   };
 
   const handleBatchProcess = () => {
-    const finalRegex = isCsvMode 
-      ? `CSV_CONFIG:${JSON.stringify({ delimiter: csvDelimiter, quoteChar: csvQuoteChar, targetColumn: csvTargetColumn })}`
-      : regexPattern;
+    let finalRegex = regexPattern;
+    if (isCsvMode) {
+      finalRegex = `CSV_CONFIG:${JSON.stringify({ delimiter: csvDelimiter, quoteChar: csvQuoteChar, targetColumn: csvTargetColumn, escapeChar: csvEscapeChar, allowMultiLine: csvAllowMultiLine })}`;
+    } else if (isUnityMode) {
+      finalRegex = `UNITY_CONFIG:${JSON.stringify({ targetLanguageIndex: unityLanguageIndex })}`;
+    }
 
-    if (!isCsvMode && !regexPattern) {
+    if (!isCsvMode && !isUnityMode && !regexPattern) {
       alert("Zadajte regulárny výraz pred hromadným spracovaním.");
       return;
     }
@@ -773,7 +809,7 @@ const App: React.FC = () => {
             <p className="text-xs text-cyber-accent mt-1">Vytvoril: Flego</p>
           </div>
           {step > 1 && (
-             <Button variant="secondary" onClick={reset} icon={<RefreshCw size={18} />}>
+             <Button variant="secondary" onClick={reset} icon={<RefreshCw size={18} />} title="Vymaže aktuálny postup a vráti vás na začiatok na Krok 1">
                Začať odznova
              </Button>
           )}
@@ -799,8 +835,8 @@ const App: React.FC = () => {
                   >
                     {isManualFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
                   </button>
-                  <Button variant="secondary" onClick={() => setIsManualMode(false)}>Zrušiť</Button>
-                  <Button onClick={handleGenerateManualRegex}>
+                  <Button variant="secondary" onClick={() => setIsManualMode(false)} title="Zatvoriť okno manuálnej analýzy">Zrušiť</Button>
+                  <Button onClick={handleGenerateManualRegex} title="Z vyznačenej vzorky vygeneruje a automaticky nastaví Regex pre extrakciu vášho formátu">
                     Vygenerovať Regex
                   </Button>
                 </div>
@@ -808,16 +844,16 @@ const App: React.FC = () => {
               
               <div className="p-4 bg-cyber-900/30 border-b border-cyber-700 flex flex-wrap gap-4 items-center justify-between">
                 <div className="flex flex-wrap gap-2">
-                  <button onClick={() => handleMarkSelection('technical')} className="px-3 py-1.5 bg-orange-500/20 text-orange-400 border border-orange-500/50 rounded text-sm hover:bg-orange-500/30 transition-colors">
+                  <button onClick={() => handleMarkSelection('technical')} className="px-3 py-1.5 bg-orange-500/20 text-orange-400 border border-orange-500/50 rounded text-sm hover:bg-orange-500/30 transition-colors" title="Myšou si vyznačte v texte časť, ktorú nechcete prekladať (formátovanie, premenné) a kliknite tu.">
                     Označiť Technickú časť (Oranžová)
                   </button>
-                  <button onClick={() => handleMarkSelection('translatable')} className="px-3 py-1.5 bg-cyber-success/20 text-cyber-success border border-cyber-success/50 rounded text-sm hover:bg-cyber-success/30 transition-colors">
+                  <button onClick={() => handleMarkSelection('translatable')} className="px-3 py-1.5 bg-cyber-success/20 text-cyber-success border border-cyber-success/50 rounded text-sm hover:bg-cyber-success/30 transition-colors" title="Myšou si vyznačte v texte tú časť, ktorú chcete poslať prekladačom, a následne kliknite tu.">
                     Označiť Text na preklad (Zelená)
                   </button>
-                  <button onClick={() => handleMarkSelection('clear')} className="px-3 py-1.5 bg-red-500/20 text-red-400 border border-red-500/50 rounded text-sm hover:bg-red-500/30 transition-colors">
+                  <button onClick={() => handleMarkSelection('clear')} className="px-3 py-1.5 bg-red-500/20 text-red-400 border border-red-500/50 rounded text-sm hover:bg-red-500/30 transition-colors" title="Myšou prejdite cez zle označené miesto a kliknutím vymažte označenie">
                     Zrušiť označenie výberu
                   </button>
-                  <button onClick={() => setManualMarks({})} className="px-3 py-1.5 bg-gray-500/20 text-gray-400 border border-gray-500/50 rounded text-sm hover:bg-gray-500/30 transition-colors">
+                  <button onClick={() => setManualMarks({})} className="px-3 py-1.5 bg-gray-500/20 text-gray-400 border border-gray-500/50 rounded text-sm hover:bg-gray-500/30 transition-colors" title="Odstráni všetky doterajšie manuálne značky z okna">
                     Vymazať všetko
                   </button>
                 </div>
@@ -958,6 +994,7 @@ const App: React.FC = () => {
                       onChange={(e) => setGameName(e.target.value)}
                       className="w-full bg-cyber-900 border border-cyber-700 rounded px-3 py-2 text-white focus:outline-none focus:border-cyber-accent"
                       placeholder="Napr. Moja Hra"
+                      title="Názov vašej hry, ku ktorému sa uloží profil s nastaveniami extrakcie"
                     />
                   </div>
 
@@ -967,6 +1004,7 @@ const App: React.FC = () => {
                       value={encoding}
                       onChange={(e) => setEncoding(e.target.value)}
                       className="w-full bg-cyber-900 border border-cyber-700 rounded px-3 py-2 text-white focus:outline-none focus:border-cyber-accent"
+                      title="Zvoľte kódovanie, v akom je originálny súbor uložený (najčastejšie UTF-8, pre staršie hry napríklad Windows-1250)"
                     >
                       <option value="utf-8">UTF-8 (Predvolené)</option>
                       <option value="utf-16le">UTF-16 LE</option>
@@ -977,24 +1015,28 @@ const App: React.FC = () => {
 
                   <div className="flex items-center mb-2">
                     <label className="text-sm text-gray-400 mr-4">Režim parsovania:</label>
-                    <label className="inline-flex items-center mr-4 cursor-pointer">
-                      <input type="radio" className="form-radio text-cyber-accent" checked={!isCsvMode} onChange={() => setIsCsvMode(false)} />
+                    <label className="inline-flex items-center mr-4 cursor-pointer" title="Na separáciu textu a technických metadát používa regulárne výrazy">
+                      <input type="radio" className="form-radio text-cyber-accent" checked={!isCsvMode && !isUnityMode} onChange={() => { setIsCsvMode(false); setIsUnityMode(false); }} />
                       <span className="ml-2 text-sm text-white">Regex</span>
                     </label>
-                    <label className="inline-flex items-center cursor-pointer">
-                      <input type="radio" className="form-radio text-cyber-accent" checked={isCsvMode} onChange={() => setIsCsvMode(true)} />
+                    <label className="inline-flex items-center mr-4 cursor-pointer" title="Parsovanie riadkov a stlpcov podľa definovaného oddeľovača (napríklad čiarka pre CSV, tab pre TSV)">
+                      <input type="radio" className="form-radio text-cyber-accent" checked={isCsvMode} onChange={() => { setIsCsvMode(true); setIsUnityMode(false); }} />
                       <span className="ml-2 text-sm text-white">CSV/TSV</span>
+                    </label>
+                    <label className="inline-flex items-center cursor-pointer" title="Extrahovanie textu na preklad priamo z herných enginov s vnorenou architektúrou">
+                      <input type="radio" className="form-radio text-cyber-accent" checked={isUnityMode} onChange={() => { setIsCsvMode(false); setIsUnityMode(true); }} />
+                      <span className="ml-2 text-sm text-white">Unity (I2Languages)</span>
                     </label>
                   </div>
 
-                  {!isCsvMode ? (
+                  {!isCsvMode && !isUnityMode && (
                     <div>
                       <div className="flex justify-between items-end mb-1">
                         <label className="block text-sm text-gray-400">Regulárny výraz (Regex)</label>
                         <button 
                           onClick={() => saveCustomProfile(false)}
                           className="text-xs text-cyber-accent hover:text-cyber-accentHover flex items-center"
-                          title="Uložiť ako nový profil"
+                          title="Uložíte všetky nastavené parametre do Vášho prehliadača ako nový profil pre ďalšiu rýchlu prácu"
                         >
                           <Save size={14} className="mr-1" /> Uložiť profil
                         </button>
@@ -1005,22 +1047,25 @@ const App: React.FC = () => {
                         onChange={(e) => setRegexPattern(e.target.value)}
                         className="w-full bg-cyber-900 border border-cyber-700 rounded px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-cyber-accent"
                         placeholder="^(.*)(text)(.*)$"
+                        title="Tu napíšte Regex zachytávajúci technickú a textovú vrstvu. Alebo stisolťte tlačidlo 'Manuálna analýza' pre generovanie!"
                       />
                     </div>
-                  ) : (
+                  )}
+                  
+                  {isCsvMode && (
                     <div className="space-y-3 bg-cyber-900/50 p-3 rounded border border-cyber-700">
                       <div className="flex justify-between items-end mb-1">
                         <label className="block text-sm text-gray-400">CSV/TSV Konfigurácia</label>
                         <button 
                           onClick={() => saveCustomProfile(false)}
                           className="text-xs text-cyber-accent hover:text-cyber-accentHover flex items-center"
-                          title="Uložiť ako nový profil"
+                          title="Uložíte všetky nastavené parametre do Vášho prehliadača ako nový profil pre ďalšiu rýchlu prácu"
                         >
                           <Save size={14} className="mr-1" /> Uložiť profil
                         </button>
                       </div>
                       <div className="grid grid-cols-3 gap-3">
-                        <div>
+                        <div title="Napr. čiarka pre štandardné CSV súbory alebo \t pre TSV súbory oddelené tabulátorom">
                           <label className="block text-xs text-gray-500 mb-1">Oddeľovač</label>
                           <input 
                             type="text" 
@@ -1030,7 +1075,7 @@ const App: React.FC = () => {
                             placeholder=","
                           />
                         </div>
-                        <div>
+                        <div title='Znak obklopujúci polia textových stringov, najčastejšie "'>
                           <label className="block text-xs text-gray-500 mb-1">Úvodzovky</label>
                           <input 
                             type="text" 
@@ -1040,13 +1085,59 @@ const App: React.FC = () => {
                             placeholder='"'
                           />
                         </div>
-                        <div>
+                        <div title="Znak používaný na rušenie úvodzoviek / escape polí (napríklad \ )">
+                          <label className="block text-xs text-gray-500 mb-1">Escape Char</label>
+                          <input 
+                            type="text" 
+                            value={csvEscapeChar}
+                            onChange={(e) => setCsvEscapeChar(e.target.value)}
+                            className="w-full bg-cyber-900 border border-cyber-700 rounded px-2 py-1.5 text-white font-mono text-sm focus:outline-none focus:border-cyber-accent"
+                            placeholder="\"
+                          />
+                        </div>
+                        <div title="Všetky CSV indexy stĺpcov sú rátané od čísla Nula (napr druhý stĺpec = číslo 1)">
                           <label className="block text-xs text-gray-500 mb-1">Cieľový stĺpec (od 0)</label>
                           <input 
                             type="number" 
                             min="0"
                             value={csvTargetColumn}
                             onChange={(e) => setCsvTargetColumn(parseInt(e.target.value) || 0)}
+                            className="w-full bg-cyber-900 border border-cyber-700 rounded px-2 py-1.5 text-white font-mono text-sm focus:outline-none focus:border-cyber-accent"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2 mt-4 ml-1" title="Zapnuté, ak sa v niektorom preklade nachádza viacriadkový text obklopený oddeľovacími znakmi">
+                          <input 
+                            type="checkbox" 
+                            checked={csvAllowMultiLine}
+                            onChange={(e) => setCsvAllowMultiLine(e.target.checked)}
+                            className="form-checkbox text-cyber-accent"
+                          />
+                          <label className="text-xs text-gray-400">Viacriadkové</label>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {isUnityMode && (
+                    <div className="space-y-3 bg-cyber-900/50 p-3 rounded border border-cyber-700">
+                      <div className="flex justify-between items-end mb-1">
+                        <label className="block text-sm text-gray-400">Unity (I2Languages) Konfigurácia</label>
+                        <button 
+                          onClick={() => saveCustomProfile(false)}
+                          className="text-xs text-cyber-accent hover:text-cyber-accentHover flex items-center"
+                          title="Uložíte všetky nastavené parametre do Vášho prehliadača ako nový profil pre ďalšiu rýchlu prácu"
+                        >
+                          <Save size={14} className="mr-1" /> Uložiť profil
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-auto gap-3">
+                        <div title="V prípade, že text obsahuje viaceré jazyky, vyplňte index tohto poľa, napríklad, angličtina je väčšinou 0.">
+                          <label className="block text-xs text-gray-500 mb-1">Cieľový jazyk na preklad (Index od 0, napr. 0, 1, 2... podľa počtu jazykov)</label>
+                          <input 
+                            type="number" 
+                            min="0"
+                            value={unityLanguageIndex}
+                            onChange={(e) => setUnityLanguageIndex(parseInt(e.target.value) || 0)}
                             className="w-full bg-cyber-900 border border-cyber-700 rounded px-2 py-1.5 text-white font-mono text-sm focus:outline-none focus:border-cyber-accent"
                           />
                         </div>
@@ -1063,18 +1154,24 @@ const App: React.FC = () => {
                         className="hidden" 
                         accept=".txt,.json,.csv,.tsv,.xml,.ini,.yaml"
                       />
-                      <div className="flex gap-2">
+                      <div className="flex flex-col gap-2">
                         <Button 
                           variant="secondary" 
-                          onClick={() => manualFileInputRef.current?.click()} 
+                          onClick={() => { setIsUnityMode(false); setIsCsvMode(false); manualFileInputRef.current?.click(); }} 
                           className="w-full justify-center text-xs"
+                          title="Otvorí vizuálny analyzátor pre označenie textu (zelená) a technických častí (oranžová)"
                         >
                           Manuálna Analýza (Generátor)
                         </Button>
+                        <Button 
+                          variant="secondary" 
+                          onClick={() => { setIsUnityMode(true); setIsCsvMode(false); }} 
+                          className="w-full justify-center text-xs border-dashed"
+                          title="Prepne do režimu konfigurácie pre textové exporty z Unity módov (napríklad I2Languages)"
+                        >
+                          Manuálna Analýza (Generátor) Unity
+                        </Button>
                       </div>
-                      <p className="text-xs text-gray-500 mt-2 text-center">
-                        Umelá inteligencia prečíta začiatok súboru a navrhne správny formát.
-                      </p>
                     </div>
                   )}
 
@@ -1100,6 +1197,7 @@ const App: React.FC = () => {
                           <Button 
                             onClick={() => sourceFileInputRef.current?.click()} 
                             className="flex-1 justify-center"
+                            title="Načítať súbor, z ktorého sa má vyextrahovať text na preklad (Krok 1)"
                           >
                             Vybrať zdrojový súbor
                           </Button>
@@ -1107,7 +1205,7 @@ const App: React.FC = () => {
                             variant="secondary"
                             onClick={handleLoadTestCsv} 
                             className="justify-center"
-                            title="Načítať testovacie CSV"
+                            title="Načítať testovacie CSV pripravené na demonštráciu funkcií"
                           >
                             Test CSV
                           </Button>
@@ -1116,19 +1214,20 @@ const App: React.FC = () => {
                           variant="secondary"
                           onClick={handleBatchProcess} 
                           className="w-full justify-center border-dashed"
-                          disabled={isCsvMode ? false : !regexPattern}
+                          disabled={(isCsvMode || isUnityMode) ? false : !regexPattern}
+                          title="Hromadne vyextrahuje texty z viacerých súborov s použitím aktuálnych nastavení parsovania"
                         >
                           Hromadné spracovanie viacerých súborov
                         </Button>
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        <div className="bg-cyber-900 p-3 rounded border border-cyber-700 flex justify-between items-center">
+                        <div className="bg-cyber-900 p-3 rounded border border-cyber-700 flex justify-between items-center" title="Informácie o vybratom súbore">
                           <div>
                             <p className="text-sm text-white font-medium">{selectedFile.name}</p>
                             <p className="text-xs text-gray-400">Detegovaný formát: <span className="text-cyber-accent">{detectedFileType}</span></p>
                           </div>
-                          <button onClick={() => setSelectedFile(null)} className="text-gray-400 hover:text-white transition-colors">
+                          <button onClick={() => setSelectedFile(null)} className="text-gray-400 hover:text-white transition-colors" title="Zrušiť výber tohto súboru">
                             <Trash2 size={16} />
                           </button>
                         </div>
@@ -1136,7 +1235,8 @@ const App: React.FC = () => {
                         <Button 
                           onClick={processSelectedFile} 
                           className="w-full justify-center"
-                          disabled={isCsvMode ? false : !regexPattern}
+                          disabled={(isCsvMode || isUnityMode) ? false : !regexPattern}
+                          title="Spracovať tento súbor podľa nastavených parametrov, extrahovať z neho texty"
                         >
                           Spracovať súbor
                         </Button>
@@ -1169,10 +1269,10 @@ const App: React.FC = () => {
                   multiple
                 />
                 <div className="flex flex-col gap-2 w-full max-w-xs">
-                  <Button variant="secondary" onClick={() => mapFileInputRef.current?.click()} className="justify-center">
+                  <Button variant="secondary" onClick={() => mapFileInputRef.current?.click()} className="justify-center" title="Nahrať už existujúcu Mapu (.json) z predošlej relácie/extrakcie">
                     Nahrať Mapu (.json)
                   </Button>
-                  <Button variant="secondary" onClick={() => batchMergeFileInputRef.current?.click()} className="justify-center border-dashed">
+                  <Button variant="secondary" onClick={() => batchMergeFileInputRef.current?.click()} className="justify-center border-dashed" title="Skladanie viacerých preložených .txt textov a XML/JSON máp naraz.">
                     Hromadné zloženie súborov
                   </Button>
                 </div>
@@ -1200,10 +1300,10 @@ const App: React.FC = () => {
                   2. Stiahnite si <strong className="text-white">Mapu</strong> (.json). Túto mapu si bezpečne uložte!
                 </p>
                 <div className="flex gap-3 pt-2">
-                  <Button onClick={handleExportClean} icon={<Download size={18} />}>
+                  <Button onClick={handleExportClean} icon={<Download size={18} />} title="Stiahnuť iba vyfiltrovaný preložitelný text, uložte tento súbor a preložte ho v ľubovoľnom programe">
                     Čistý text (.txt)
                   </Button>
-                  <Button variant="secondary" onClick={handleExportMap} icon={<Code size={18} />}>
+                  <Button variant="secondary" onClick={handleExportMap} icon={<Code size={18} />} title="Stiahnuť mapu pôvodného súboru s metadátami potrebnú na opätovné zloženie. ULOŽTE SI ZÁLOHU!">
                     Mapa (.json)
                   </Button>
                 </div>
@@ -1225,7 +1325,7 @@ const App: React.FC = () => {
                     className="hidden" 
                     accept=".txt"
                   />
-                  <Button onClick={() => translationInputRef.current?.click()} icon={<Upload size={18} />}>
+                  <Button onClick={() => translationInputRef.current?.click()} icon={<Upload size={18} />} title="Nahrať už preložený text (.txt), počet preložených riadkov musí sedieť s originálom">
                     Nahrať preložený text
                   </Button>
                 </div>
@@ -1254,11 +1354,12 @@ const App: React.FC = () => {
                         onClick={proceedToMerge} 
                         variant={validationResult.isValid ? "primary" : "secondary"}
                         className={!validationResult.isValid ? "border-red-500/50 hover:bg-red-500/20 text-red-300" : ""}
+                        title={validationResult.isValid ? "Spojí originálny technický text so zmeneným preloženým a vytvorí finálny text" : "Ignoruje upozornenie a násilne spojí súbory (môže spôsobiť porušenie kódu!)"}
                       >
                         {validationResult.isValid ? 'Pokračovať a zlúčiť' : 'Napriek tomu zlúčiť'}
                       </Button>
                       {!validationResult.isValid && (
-                        <Button variant="secondary" onClick={() => setValidationResult(null)}>
+                        <Button variant="secondary" onClick={() => setValidationResult(null)} title="Zrušiť možnosť spojiť tento text">
                           Zrušiť
                         </Button>
                       )}
@@ -1427,7 +1528,7 @@ const App: React.FC = () => {
              </div>
 
              <div className="flex justify-end pt-4">
-                <Button onClick={handleDownloadFinal} icon={<Download size={18} />}>
+                <Button onClick={handleDownloadFinal} icon={<Download size={18} />} title="Stiahnuť preložený súbor vo finálnom formáte s doplneným technickým textom">
                   Stiahnuť finálny súbor
                 </Button>
              </div>

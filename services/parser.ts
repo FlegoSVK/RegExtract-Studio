@@ -5,6 +5,83 @@ import { ParsedLine, ProjectMap, CsvConfig } from '../types';
 // Pattern is provided by the user or the analyzer
 
 export const parseFileContent = (content: string, fileName: string, regexPattern: string): ProjectMap => {
+  if (regexPattern.startsWith('UNITY_CONFIG:')) {
+    try {
+      const configStr = regexPattern.substring('UNITY_CONFIG:'.length).trim();
+      const unityConfig = JSON.parse(configStr);
+      
+      const rawLines = content.split(/\r?\n/);
+      const parsedLines: ParsedLine[] = [];
+      
+      let inTermData = false;
+      let inLanguages = false;
+      let inLanguageIndex = -1;
+      
+      for (let i = 0; i < rawLines.length; i++) {
+        const line = rawLines[i];
+        
+        if (line.match(/^\s*0 TermData data/)) {
+          inTermData = true;
+          inLanguages = false;
+        }
+        
+        if (inTermData && line.match(/^\s*0 string Languages\s*$/)) {
+          inLanguages = true;
+          inLanguageIndex = -1;
+        }
+
+        if (inLanguages && line.match(/^\s*0 vector Flags/)) {
+            inLanguages = false;
+            inLanguageIndex = -1;
+        }
+        
+        if (inTermData && inLanguages) {
+          const indexMatch = line.match(/^\s*\[(\d+)\]\s*$/);
+          if (indexMatch) {
+            inLanguageIndex = parseInt(indexMatch[1]);
+          } else if (inLanguageIndex === unityConfig.targetLanguageIndex) {
+            const firstQuote = line.indexOf('"');
+            const lastQuote = line.lastIndexOf('"');
+            if (firstQuote !== -1 && lastQuote !== -1 && firstQuote < lastQuote && line.includes("string data =")) {
+              const prefix = line.substring(0, firstQuote + 1);
+              const text = line.substring(firstQuote + 1, lastQuote);
+              const suffix = line.substring(lastQuote);
+              
+              parsedLines.push({
+                id: i,
+                originalContent: line,
+                isTranslatable: true,
+                prefix,
+                text,
+                suffix
+              });
+              continue;
+            }
+          }
+        }
+        
+        parsedLines.push({
+          id: i,
+          originalContent: line,
+          isTranslatable: false,
+          prefix: line,
+          text: '',
+          suffix: ''
+        });
+      }
+      
+      return {
+        fileName,
+        lines: parsedLines,
+        timestamp: Date.now(),
+        regexPattern,
+        unityConfig
+      };
+    } catch (e) {
+      console.error("Failed to parse Unity config or content:", e);
+    }
+  }
+
   if (regexPattern.startsWith('CSV_CONFIG:')) {
     try {
       const configStr = regexPattern.substring('CSV_CONFIG:'.length).trim();
@@ -16,8 +93,9 @@ export const parseFileContent = (content: string, fileName: string, regexPattern
       const parsed = Papa.parse<string[]>(content, {
         delimiter: delimiter,
         quoteChar: csvConfig.quoteChar,
+        escapeChar: csvConfig.escapeChar,
         header: false,
-        skipEmptyLines: false,
+        skipEmptyLines: !csvConfig.allowMultiLine,
       });
 
       const parsedLines: ParsedLine[] = parsed.data.map((row, index) => {

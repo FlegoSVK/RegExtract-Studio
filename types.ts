@@ -13,6 +13,12 @@ export interface CsvConfig {
   delimiter: string;
   quoteChar: string;
   targetColumn: number;
+  escapeChar: string;
+  allowMultiLine: boolean;
+}
+
+export interface UnityConfig {
+  targetLanguageIndex: number;
 }
 
 export interface ProjectMap {
@@ -23,4 +29,5 @@ export interface ProjectMap {
   regexPattern?: string;
   encoding?: string;
   csvConfig?: CsvConfig;
+  unityConfig?: UnityConfig;
 }
