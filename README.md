@@ -4,7 +4,6 @@
 **RegExtract Studio** je moderný, bezpečný a plne lokálny prehliadačový nástroj navrhnutý pre prekladateľov a lokalizátorov. Jeho primárnym cieľom je zjednodušiť náročný proces extrahovania textov z komplexných štruktúr (JSON, XML, CSV, INI, vlastné interné herné formáty) do čistých TXT súborov pre CAT (Computer-Assisted Translation) nástroje a strojové prekladače. Po preklade sa texty poskladajú naspäť do ich pôvodnej formy a štruktúry bez toho, aby bol narušený kód. 
 
 Celá mágia na pozadí je založená na inteligentnom lokálnom generátore regulárnych výrazov (Regex).
-<img width="1649" height="1246" alt="image" src="https://github.com/user-attachments/assets/64bace9d-eb02-41ba-90a1-bcb7f5667976" />
 
 ---
 
@@ -30,24 +29,29 @@ Bez ohľadu na zložitosť súboru sa aplikácia pozerá na dáta cez optiku **R
 - **Escape Character:** Možnosť nastaviť únikový znak (najčastejšie `\`) pre korektné načítanie textov so špeciálnymi znakmi.
 - **Unity TextAsset (m_Script) sub-mód:** Unikátna funkcia pri ktorej sa dáta nachádzajú ako "vnorené CSV" vo vnútri jedinej textovej premennej (napr. vizuálny gigantický riadok escapovaný cez `\r\n`). Tento režim rozbije premennú na virtuálnu tabuľku, po riadkoch ju preloží a spätne poskladá do striktne jednej kóderskej riadky aj po nahratí prekladov!
 
-### 4. Inteligentné UI a Tooltipy
+### 4. Unreal Engine 5 (UE5 UAssetAPI JSON) Režim
+- Špeciálny modul pre parsovanie komplexných `DataTableExport` štruktúr z exportov Unreal Engine 5 cez nástroj UAssetAPI (JSON).
+- **Cieľový Jazyk:** Systém automaticky preskenuje hlboké polia (zvyčajne `"Name": "en"`) a vytiahne lokalizované hodnoty (`CultureInvariantString`, `SourceString`, atď.).
+- Po preklade sa texty poskladajú **presne na svoje pôvodné miesto** v JSON strome a vytvoria plne kompatibilný formát pripravený pre import späť do UE5.
+
+### 5. Inteligentné UI a Tooltipy
 - Celé rozhranie aplikácie je vybavené pomocnými textami (tooltips), ktoré sa zobrazia po **nabehnutí kurzorom** na akékoľvek tlačidlo alebo funkciu.
 - Náhľad analýzy zdrojového súboru zobrazuje až **200 riadkov** pre okamžitú vizuálnu kontrolu úspešnosti extrakcie.
 
-### 5. Multi-skupinové riadky (Viacero prekladov v jednom riadku)
+### 6. Multi-skupinové riadky (Viacero prekladov v jednom riadku)
 Máte riadok tvorený štýlom `<D_100>Ahoj</D><D_101>Svet</D>`? Žiadny problém! Označte slovo "Ahoj" ako text na preklad, "Svet" ako text na preklad a čísla 100/101 ako technickú časť. Generátor to spracuje.
 
-### 6. Vlastné Profily Hry
-Po zostavení konfigurácie (Regex, CSV nastavenia alebo Unity index) si aplikácia dokáže Profil a Názov hry uložiť do LocalStorage prehliadača. Budúce aktualizácie hry spracujete dvoma kliknutiami.
+### 7. Vlastné Profily Hry
+Po zostavení konfigurácie (Regex, CSV nastavenia, Unity index alebo UE5 jazyk) si aplikácia dokáže Profil a Názov hry uložiť do LocalStorage prehliadača. Budúce aktualizácie hry spracujete dvoma kliknutiami.
 
-### 7. Správa Projektov (Mapovacie súbory)
+### 8. Správa Projektov (Mapovacie súbory)
 Za každým úspešným spracovaním získa užívateľ **Mapu projektu** `.map.json`. Je to vnútorný štruktúrny kompas aplikácie na poskladanie finálneho textu. Zároveň stiahnete **čistý text** `.txt` so samotnými vetami na preklad (po riadkoch).
 
-### 8. Hromadné Skladanie a Extrakcia (Batch Reassembly)
+### 9. Hromadné Skladanie a Extrakcia (Batch Reassembly)
 Pre moderné hry zložené zo 100+ súborov môžete hromadne odovzdať balík súborov, aplikovať na nich pripravený Profil a stiahnuť ZIP s hotovými TXT + MAP dátami.
 Na konci nahráte balíky preložených TXT a MAP nazad a stiahnete ZIP hotových preložených súborov hry!
 
-### 9. Bezpečnosť a Súkromie
+### 10. Bezpečnosť a Súkromie
 Aplikácia je **plne offline**. Celý parsovací engine beží priamo vo vašom prehliadači. Neodosielate útržky chránených hier (NDA) na žiadne servery.
 
 ---
@@ -85,4 +89,4 @@ Aplikácia je **plne offline**. Celý parsovací engine beží priamo vo vašom 
 
 ---
 **Vytvoril:** Flego  
-**Verzia:** 2.2 (RegExtract Studio Zero-Server)
+**Verzia:** 2.3 (RegExtract Studio Zero-Server)

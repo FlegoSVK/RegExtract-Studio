@@ -64,6 +64,11 @@ const App: React.FC = () => {
   const [isUnityMode, setIsUnityMode] = useState<boolean>(false);
   const [unityLanguageIndex, setUnityLanguageIndex] = useState<number>(0);
 
+  // UE5 Mode State
+  const [isUe5Mode, setIsUe5Mode] = useState<boolean>(false);
+  const [ue5TargetLang, setUe5TargetLang] = useState<string>('en');
+  const [ue5AvailableLangs, setUe5AvailableLangs] = useState<string[]>([]);
+
   // File Selection State
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [detectedFileType, setDetectedFileType] = useState<string>('');
@@ -113,6 +118,7 @@ const App: React.FC = () => {
       if (profile.regex.startsWith('CSV_CONFIG:')) {
         setIsCsvMode(true);
         setIsUnityMode(false);
+        setIsUe5Mode(false);
         try {
           const config = JSON.parse(profile.regex.substring('CSV_CONFIG:'.length));
           setCsvDelimiter(config.delimiter || ',');
@@ -128,15 +134,27 @@ const App: React.FC = () => {
       } else if (profile.regex.startsWith('UNITY_CONFIG:')) {
         setIsCsvMode(false);
         setIsUnityMode(true);
+        setIsUe5Mode(false);
         try {
           const config = JSON.parse(profile.regex.substring('UNITY_CONFIG:'.length));
           setUnityLanguageIndex(config.targetLanguageIndex !== undefined ? config.targetLanguageIndex : 0);
         } catch (e) {
           console.error("Failed to parse Unity config", e);
         }
+      } else if (profile.regex.startsWith('UE5_CONFIG:')) {
+        setIsCsvMode(false);
+        setIsUnityMode(false);
+        setIsUe5Mode(true);
+        try {
+          const config = JSON.parse(profile.regex.substring('UE5_CONFIG:'.length));
+          setUe5TargetLang(config.targetLang || 'en');
+        } catch (e) {
+          console.error("Failed to parse UE5 config", e);
+        }
       } else {
         setIsCsvMode(false);
         setIsUnityMode(false);
+        setIsUe5Mode(false);
         setRegexPattern(profile.regex);
       }
     }
@@ -157,6 +175,10 @@ const App: React.FC = () => {
     } else if (isUnityMode) {
       finalRegex = `UNITY_CONFIG:${JSON.stringify({
         targetLanguageIndex: unityLanguageIndex
+      })}`;
+    } else if (isUe5Mode) {
+      finalRegex = `UE5_CONFIG:${JSON.stringify({
+        targetLang: ue5TargetLang
       })}`;
     }
 
@@ -248,6 +270,14 @@ const App: React.FC = () => {
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target?.result as string;
+      
+      // Auto-scan UE5 languages if in UE5 mode and file is JSON
+      if (isUe5Mode && file.name.endsWith('.json')) {
+        scanUe5Languages(content);
+        if (manualFileInputRef.current) manualFileInputRef.current.value = '';
+        return; // Don't enter manual mode for UE5
+      }
+
       setManualLines(content.split(/\r?\n/));
       setIsManualMode(true);
       setManualViewStart(0);
@@ -255,6 +285,51 @@ const App: React.FC = () => {
     };
     reader.readAsText(file, encoding);
     if (manualFileInputRef.current) manualFileInputRef.current.value = '';
+  };
+
+  const scanUe5Languages = (content: string) => {
+    try {
+      const jsonData = JSON.parse(content);
+      const langs = new Set<string>();
+      
+      const traverse = (node: any) => {
+        if (!node || typeof node !== 'object') return;
+        
+        if (Array.isArray(node)) {
+          node.forEach(traverse);
+        } else {
+          if (node.$type && typeof node.$type === 'string' && node.$type.includes("TextPropertyData") && typeof node.Name === 'string') {
+            langs.add(node.Name);
+          }
+          // Continue traversal for child properties
+          for (const key in node) {
+            if (key !== '$type' && key !== 'Name') { 
+                traverse(node[key]);
+            }
+          }
+        }
+      };
+
+      traverse(jsonData);
+      
+      if (langs.size > 0) {
+        const langArray = Array.from(langs);
+        setUe5AvailableLangs(langArray);
+        alert(`Úspešne sa našlo ${langArray.length} jazykov na extrakciu.`);
+        if (langArray.includes('en')) {
+           setUe5TargetLang('en');
+        } else {
+           setUe5TargetLang(langArray[0]);
+        }
+      } else {
+        setUe5AvailableLangs([]);
+        alert("V JSON súbore sa nenašli žiadne jazyky pre Unreal Engine 5 (TextPropertyData).");
+      }
+    } catch (e) {
+      console.error("Not a valid JSON or failed to scan UE5 languages", e);
+      setUe5AvailableLangs([]);
+      alert("Súbor nie je platný JSON alebo nastala chyba pri skenovaní.");
+    }
   };
 
   const handleMarkSelection = (type: 'translatable' | 'technical' | 'clear') => {
@@ -456,9 +531,11 @@ const App: React.FC = () => {
       finalRegex = `CSV_CONFIG:${JSON.stringify({ delimiter: csvDelimiter, quoteChar: csvQuoteChar, targetColumn: csvTargetColumn, escapeChar: csvEscapeChar, allowMultiLine: csvAllowMultiLine, headerRowIndex: csvHeaderRowIndex, isUnityTextAssetFormat: csvIsUnityTextAssetFormat })}`;
     } else if (isUnityMode) {
       finalRegex = `UNITY_CONFIG:${JSON.stringify({ targetLanguageIndex: unityLanguageIndex })}`;
+    } else if (isUe5Mode) {
+      finalRegex = `UE5_CONFIG:${JSON.stringify({ targetLang: ue5TargetLang })}`;
     }
 
-    if (!isCsvMode && !isUnityMode && !regexPattern) {
+    if (!isCsvMode && !isUnityMode && !isUe5Mode && !regexPattern) {
       alert("Zadajte regulárny výraz pred spracovaním súboru.");
       return;
     }
@@ -487,9 +564,11 @@ const App: React.FC = () => {
       finalRegex = `CSV_CONFIG:${JSON.stringify({ delimiter: csvDelimiter, quoteChar: csvQuoteChar, targetColumn: csvTargetColumn, escapeChar: csvEscapeChar, allowMultiLine: csvAllowMultiLine, headerRowIndex: csvHeaderRowIndex, isUnityTextAssetFormat: csvIsUnityTextAssetFormat })}`;
     } else if (isUnityMode) {
       finalRegex = `UNITY_CONFIG:${JSON.stringify({ targetLanguageIndex: unityLanguageIndex })}`;
+    } else if (isUe5Mode) {
+      finalRegex = `UE5_CONFIG:${JSON.stringify({ targetLang: ue5TargetLang })}`;
     }
 
-    if (!isCsvMode && !isUnityMode && !regexPattern) {
+    if (!isCsvMode && !isUnityMode && !isUe5Mode && !regexPattern) {
       alert("Zadajte regulárny výraz pred hromadným spracovaním.");
       return;
     }
@@ -508,6 +587,8 @@ const App: React.FC = () => {
 
     const finalRegex = isCsvMode 
       ? `CSV_CONFIG:${JSON.stringify({ delimiter: csvDelimiter, quoteChar: csvQuoteChar, targetColumn: csvTargetColumn, escapeChar: csvEscapeChar, allowMultiLine: csvAllowMultiLine, headerRowIndex: csvHeaderRowIndex, isUnityTextAssetFormat: csvIsUnityTextAssetFormat })}`
+      : isUnityMode ? `UNITY_CONFIG:${JSON.stringify({ targetLanguageIndex: unityLanguageIndex })}` 
+      : isUe5Mode ? `UE5_CONFIG:${JSON.stringify({ targetLang: ue5TargetLang })}`
       : regexPattern;
 
     try {
@@ -702,7 +783,13 @@ const App: React.FC = () => {
       const content = event.target?.result as string;
       
       if (projectMap) {
-        const expectedCount = projectMap.lines.filter(l => l.isTranslatable).length;
+        const expectedCount = projectMap.lines.reduce((acc, line) => {
+          if (!line.isTranslatable) return acc;
+          if (line.parts && line.parts.length > 0) {
+            return acc + line.parts.filter(p => p.isTranslatable).length;
+          }
+          return acc + 1;
+        }, 0);
         const translatedLines = content.split(/\r?\n/);
         
         let warnings: string[] = [];
@@ -1019,23 +1106,27 @@ const App: React.FC = () => {
                     </select>
                   </div>
 
-                  <div className="flex items-center mb-2">
+                  <div className="flex items-center mb-2 flex-wrap gap-y-2">
                     <label className="text-sm text-gray-400 mr-4">Režim parsovania:</label>
                     <label className="inline-flex items-center mr-4 cursor-pointer" title="Na separáciu textu a technických metadát používa regulárne výrazy">
-                      <input type="radio" className="form-radio text-cyber-accent" checked={!isCsvMode && !isUnityMode} onChange={() => { setIsCsvMode(false); setIsUnityMode(false); }} />
+                      <input type="radio" className="form-radio text-cyber-accent" checked={!isCsvMode && !isUnityMode && !isUe5Mode} onChange={() => { setIsCsvMode(false); setIsUnityMode(false); setIsUe5Mode(false); }} />
                       <span className="ml-2 text-sm text-white">Regex</span>
                     </label>
                     <label className="inline-flex items-center mr-4 cursor-pointer" title="Parsovanie riadkov a stlpcov podľa definovaného oddeľovača (napríklad čiarka pre CSV, tab pre TSV)">
-                      <input type="radio" className="form-radio text-cyber-accent" checked={isCsvMode} onChange={() => { setIsCsvMode(true); setIsUnityMode(false); }} />
+                      <input type="radio" className="form-radio text-cyber-accent" checked={isCsvMode} onChange={() => { setIsCsvMode(true); setIsUnityMode(false); setIsUe5Mode(false); }} />
                       <span className="ml-2 text-sm text-white">CSV/TSV</span>
                     </label>
-                    <label className="inline-flex items-center cursor-pointer" title="Extrahovanie textu na preklad priamo z herných enginov s vnorenou architektúrou">
-                      <input type="radio" className="form-radio text-cyber-accent" checked={isUnityMode} onChange={() => { setIsCsvMode(false); setIsUnityMode(true); }} />
+                    <label className="inline-flex items-center mr-4 cursor-pointer" title="Extrahovanie textu na preklad priamo z herných enginov s vnorenou architektúrou">
+                      <input type="radio" className="form-radio text-cyber-accent" checked={isUnityMode} onChange={() => { setIsCsvMode(false); setIsUnityMode(true); setIsUe5Mode(false); }} />
                       <span className="ml-2 text-sm text-white">Unity (I2Languages)</span>
+                    </label>
+                    <label className="inline-flex items-center cursor-pointer" title="Extrahovanie a nahrádzanie prekladu priamo v Unreal Engine 5 JSON formáte z nástroja UAssetAPI">
+                      <input type="radio" className="form-radio text-cyber-accent" checked={isUe5Mode} onChange={() => { setIsCsvMode(false); setIsUnityMode(false); setIsUe5Mode(true); }} />
+                      <span className="ml-2 text-sm text-white">UE5 (UAssetAPI)</span>
                     </label>
                   </div>
 
-                  {!isCsvMode && !isUnityMode && (
+                  {!isCsvMode && !isUnityMode && !isUe5Mode && (
                     <div>
                       <div className="flex justify-between items-end mb-1">
                         <label className="block text-sm text-gray-400">Regulárny výraz (Regex)</label>
@@ -1170,6 +1261,57 @@ const App: React.FC = () => {
                     </div>
                   )}
 
+                  {isUe5Mode && (
+                    <div className="space-y-3 bg-cyber-900/50 p-3 rounded border border-cyber-700">
+                      <div className="flex justify-between items-end mb-1">
+                        <label className="block text-sm text-gray-400">Unreal Engine 5 (UAssetAPI) Konfigurácia</label>
+                        <button 
+                          onClick={() => saveCustomProfile(false)}
+                          className="text-xs text-cyber-accent hover:text-cyber-accentHover flex items-center"
+                          title="Uložíte všetky nastavené parametre do Vášho prehliadača ako nový profil pre ďalšiu rýchlu prácu"
+                        >
+                          <Save size={14} className="mr-1" /> Uložiť profil
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-auto gap-3">
+                        <div title="Názov kľúča pre cieľový jazyk, ktorý chcete vyextrahovať na preklad z poľa Name. (Napríklad 'en' pre angličtinu). Ak jazyk chýba, systém ho vo Value textoch nenájde.">
+                          <label className="block text-xs text-gray-500 mb-1">Kód cieľového jazyka pre preklad (Name)</label>
+                          {ue5AvailableLangs.length > 0 ? (
+                            <select 
+                              value={ue5TargetLang}
+                              onChange={(e) => setUe5TargetLang(e.target.value)}
+                              className="w-full bg-cyber-900 border border-cyber-700 rounded px-2 py-1.5 text-white font-mono text-sm focus:outline-none focus:border-cyber-accent"
+                            >
+                              <option value="">-- Vyberte jazyk zo zoznamu --</option>
+                              {ue5AvailableLangs.map(lang => (
+                                <option key={lang} value={lang}>{lang}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input 
+                              type="text" 
+                              value={ue5TargetLang}
+                              onChange={(e) => setUe5TargetLang(e.target.value)}
+                              className="w-full bg-cyber-900 border border-cyber-700 rounded px-2 py-1.5 text-white font-mono text-sm focus:outline-none focus:border-cyber-accent"
+                              placeholder="Napr. en, de, fr, ko"
+                            />
+                          )}
+                        </div>
+                        {ue5AvailableLangs.length === 0 && (
+                          <div className="flex items-end">
+                            <button
+                              onClick={() => { setIsUe5Mode(true); setIsUnityMode(false); setIsCsvMode(false); manualFileInputRef.current?.click(); }}
+                              className="w-full bg-cyber-800 hover:bg-cyber-700 border border-cyber-600 rounded px-3 py-1.5 text-xs text-cyber-300 transition-colors"
+                              title="Vyberte vzorový JSON súbor z UE5 pre automatické rozpoznanie dostupných jazykov"
+                            >
+                              Skenovať JSON súbor
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {selectedProfile === 'custom' && (
                     <div className="pt-2 space-y-2">
                       <input 
@@ -1239,7 +1381,7 @@ const App: React.FC = () => {
                           variant="secondary"
                           onClick={handleBatchProcess} 
                           className="w-full justify-center border-dashed"
-                          disabled={(isCsvMode || isUnityMode) ? false : !regexPattern}
+                          disabled={(isCsvMode || isUnityMode || isUe5Mode) ? false : !regexPattern}
                           title="Hromadne vyextrahuje texty z viacerých súborov s použitím aktuálnych nastavení parsovania"
                         >
                           Hromadné spracovanie viacerých súborov
@@ -1260,7 +1402,7 @@ const App: React.FC = () => {
                         <Button 
                           onClick={processSelectedFile} 
                           className="w-full justify-center"
-                          disabled={(isCsvMode || isUnityMode) ? false : !regexPattern}
+                          disabled={(isCsvMode || isUnityMode || isUe5Mode) ? false : !regexPattern}
                           title="Spracovať tento súbor podľa nastavených parametrov, extrahovať z neho texty"
                         >
                           Spracovať súbor

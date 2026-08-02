@@ -8,6 +8,7 @@ export interface ParsedLine {
   csvRow?: string[]; // The parsed CSV row if applicable
   embeddedCsv?: { data: string[][]; targetColumn: number; headerRowIndex?: number };
   parts?: { isTranslatable: boolean, text: string }[]; // All parts including technical and translatable
+  ue5Path?: string; // The JSON path for UE5 property
 }
 
 export interface CsvConfig {
@@ -24,6 +25,10 @@ export interface UnityConfig {
   targetLanguageIndex: number;
 }
 
+export interface Ue5Config {
+  targetLang: string;
+}
+
 export interface ProjectMap {
   fileName: string;
   lines: ParsedLine[];
@@ -33,4 +38,6 @@ export interface ProjectMap {
   encoding?: string;
   csvConfig?: CsvConfig;
   unityConfig?: UnityConfig;
+  ue5Config?: Ue5Config;
+  ue5Data?: any;
 }

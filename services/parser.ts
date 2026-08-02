@@ -1,10 +1,76 @@
 import Papa from 'papaparse';
-import { ParsedLine, ProjectMap, CsvConfig } from '../types';
+import { ParsedLine, ProjectMap, CsvConfig, Ue5Config } from '../types';
 
 // Logic for dynamic localization file parsing
 // Pattern is provided by the user or the analyzer
 
 export const parseFileContent = (content: string, fileName: string, regexPattern: string): ProjectMap => {
+  if (regexPattern.startsWith('UE5_CONFIG:')) {
+    try {
+      const configStr = regexPattern.substring('UE5_CONFIG:'.length).trim();
+      const ue5Config: Ue5Config = JSON.parse(configStr);
+      
+      const ue5Data = JSON.parse(content);
+      const parsedLines: ParsedLine[] = [];
+      let lineCounter = 0;
+
+      const traverse = (node: any, path: string[]) => {
+        if (!node || typeof node !== 'object') return;
+        
+        if (Array.isArray(node)) {
+          node.forEach((child, index) => traverse(child, [...path, index.toString()]));
+        } else {
+          // Check if this node is a TextPropertyData for the target language
+          if (node.$type && typeof node.$type === 'string' && node.$type.includes("TextPropertyData") && node.Name === ue5Config.targetLang) {
+            let text = "";
+            let textKey = "";
+            if (typeof node.CultureInvariantString === 'string') {
+              text = node.CultureInvariantString;
+              textKey = "CultureInvariantString";
+            } else if (typeof node.LocalizedString === 'string') {
+              text = node.LocalizedString;
+              textKey = "LocalizedString";
+            } else if (typeof node.SourceString === 'string') {
+              text = node.SourceString;
+              textKey = "SourceString";
+            }
+
+            if (text) {
+              parsedLines.push({
+                id: lineCounter++,
+                originalContent: text, // Keeping text as original content for the diff UI
+                isTranslatable: true,
+                prefix: '',
+                text: text,
+                suffix: '',
+                ue5Path: [...path, textKey].join('.')
+              });
+            }
+          }
+          // Continue traversal for child properties
+          for (const key in node) {
+            if (key !== '$type' && key !== 'Name') { // Optimization to avoid unnecessary deep traversal of primitive properties
+               traverse(node[key], [...path, key]);
+            }
+          }
+        }
+      };
+      
+      traverse(ue5Data, []);
+
+      return {
+        fileName,
+        lines: parsedLines,
+        timestamp: Date.now(),
+        regexPattern,
+        ue5Config,
+        ue5Data
+      };
+    } catch (e) {
+      console.error("Failed to parse UE5 config or content:", e);
+    }
+  }
+
   if (regexPattern.startsWith('UNITY_CONFIG:')) {
     try {
       const configStr = regexPattern.substring('UNITY_CONFIG:'.length).trim();
@@ -296,6 +362,13 @@ export const parseFileContent = (content: string, fileName: string, regexPattern
 };
 
 export const generateExportText = (projectMap: ProjectMap): string => {
+  if (projectMap.ue5Config) {
+    return projectMap.lines
+      .filter(line => line.isTranslatable)
+      .map(line => line.text.replace(/\r/g, '\\r').replace(/\n/g, '\\n'))
+      .join('\r\n');
+  }
+
   // Filter out non-translatable lines completely to avoid empty lines in the text file
   // Join with CRLF for Windows compatibility
   // Escape newlines so multiline CSV fields don't break the line-by-line translation format
@@ -313,6 +386,30 @@ export const generateExportText = (projectMap: ProjectMap): string => {
 export const generateMergedFile = (projectMap: ProjectMap, translatedText: string): string => {
   const translatedLines = translatedText.split(/\r?\n/);
   let translationIndex = 0;
+
+  if (projectMap.ue5Config && projectMap.ue5Data) {
+    const clonedData = JSON.parse(JSON.stringify(projectMap.ue5Data));
+
+    for (const line of projectMap.lines) {
+      if (line.isTranslatable && line.ue5Path) {
+        let translatedLineContent = line.text;
+        if (translationIndex < translatedLines.length) {
+          translatedLineContent = translatedLines[translationIndex].replace(/\\r/g, '\r').replace(/\\n/g, '\n');
+          translationIndex++;
+        }
+
+        // Apply using lodash-like set
+        const parts = line.ue5Path.split('.');
+        let current = clonedData;
+        for (let i = 0; i < parts.length - 1; i++) {
+          current = current[parts[i]];
+        }
+        current[parts[parts.length - 1]] = translatedLineContent;
+      }
+    }
+    
+    return JSON.stringify(clonedData, null, 2);
+  }
 
   if (projectMap.csvConfig) {
     const { delimiter, quoteChar, targetColumn, isUnityTextAssetFormat } = projectMap.csvConfig;
