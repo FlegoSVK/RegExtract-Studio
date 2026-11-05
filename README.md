@@ -11,11 +11,16 @@ Celá mágia na pozadí je založená na inteligentnom lokálnom generátore reg
 
 Bez ohľadu na zložitosť súboru sa aplikácia pozerá na dáta cez optiku **Regulárnych Výrazov** (a v prípade CSV ich bezpečne prečíta cez PapaParse). Kľúčovou vlastnosťou je Zero-server prístup: všetky súbory zostávajú na vašom disku v RAM vášho prehliadača.
 
-### 1. Vizuálny Regex Generátor (Manuálna Analýza)
-- Používateľ načíta vzorový súbor a priamo myšou si označí, ktorú časť riadku je potrebné "preložiť" a ktorú "ignorovať".
-- **Zelená (Text na preklad):** Text sa označí ako cieľový na preklad (`(.*?)`).
-- **Oranžová (Technický parameter):** Extrémne užitočné na dynamické IDčka (napr. `"msg_001"`). Označením povieš generátoru, aby na tomto mieste na syntax netrval a použil wildcard `.*?`.
-- Systém bezpečne odfiltruje kód a pre Vás sa otvoria len čisté vety a nadpisy s **vysokou presnosťou** zachytávania vďaka inteligentnej detekcii okolitých medzier a špeciálnych znakov.
+### 1. Split-Screen Vizuálny Regex Generátor (Manuálna Analýza)
+- **Multi-Strategy Návrhy (Strict / Smart Pattern / Flexible):**
+  - **Prísny vzor (Strict):** Presné doslovné kotevné body pre jednotne štruktúrované skripty.
+  - **Inteligentný vzor (Smart Pattern - Odporúčané):** Automaticky deteguje číselné identifikátory (`\d+`), bezpečné ohraničenia úvodzoviek (`"([^"]*)"`), XML/HTML tagy a flexibilné medzery.
+  - **Flexibilný vzor (Flexible):** Uvoľnené ohraničenia pre premenlivé dialógové súbory.
+- **Živá diagnostika a štatistika zhôd v reálnom čase:** Priamo v okne vidíte percentuálnu úspešnosť (napr. *480 z 500 riadkov*), zoznam zachytených textov a zoznam nezachytených riadkov s možnosťou 1-klikom prejsť na nezodpovedajúci riadok pre dodatočnú analýzu.
+- **Označovanie myšou a klávesové skratky:**
+  - `T`: Text na preklad (zelený zvýrazňovač)
+  - `K`: Technická časť / premenné (oranžový zvýrazňovač)
+  - `C`: Zrušenie výberu / vymazanie označenia
 
 ### 2. Manuálna Analýza Unity (I2Languages)
 - Špeciálny modul určený pre komplexné Unity textové exporty (napr. platforma I2Localization).

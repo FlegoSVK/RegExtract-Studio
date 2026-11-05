@@ -318,28 +318,64 @@ export const parseFileContent = (content: string, fileName: string, regexPattern
   }
   
   const parsedLines: ParsedLine[] = rawLines.map((line, index) => {
-    
     // Check if line matches the dynamic format
     const match = line.match(regex);
 
-    if (match && match.length >= 3 && match.length % 2 === 0) { // match.length includes the full match at index 0, so 4, 6, 8...
-      const parts: { isTranslatable: boolean, text: string }[] = [];
-      for (let i = 2; i < match.length - 1; i++) {
-        parts.push({
-          isTranslatable: i % 2 === 0,
-          text: match[i] || ''
-        });
-      }
+    if (match) {
+      // RegExtract standard multi-part format (prefix, text1, gap, text2, ..., suffix)
+      // match.length >= 4 and match.length is even: match[1]=prefix, match[2]=text, match[3]=gap... match[last]=suffix
+      if (match.length >= 4 && match.length % 2 === 0) {
+        const parts: { isTranslatable: boolean, text: string }[] = [];
+        for (let i = 2; i < match.length - 1; i++) {
+          parts.push({
+            isTranslatable: i % 2 === 0,
+            text: match[i] || ''
+          });
+        }
 
-      return {
-        id: index,
-        originalContent: line,
-        isTranslatable: true,
-        prefix: match[1] || '',
-        text: match[2] || '',
-        suffix: match[match.length - 1] || '',
-        parts: parts
-      };
+        return {
+          id: index,
+          originalContent: line,
+          isTranslatable: true,
+          prefix: match[1] || '',
+          text: match[2] || '',
+          suffix: match[match.length - 1] || '',
+          parts: parts
+        };
+      } else if (match.length === 2) {
+        // 1 capture group: entire translatable text
+        return {
+          id: index,
+          originalContent: line,
+          isTranslatable: true,
+          prefix: line.substring(0, match.index ?? 0),
+          text: match[1] || '',
+          suffix: line.substring((match.index ?? 0) + match[0].length),
+          parts: [{ isTranslatable: true, text: match[1] || '' }]
+        };
+      } else if (match.length === 3) {
+        // 2 capture groups: group 1 = prefix, group 2 = text
+        return {
+          id: index,
+          originalContent: line,
+          isTranslatable: true,
+          prefix: match[1] || '',
+          text: match[2] || '',
+          suffix: '',
+          parts: [{ isTranslatable: true, text: match[2] || '' }]
+        };
+      } else if (match.length === 4 && match.length % 2 !== 0) {
+        // 3 capture groups: prefix, text, suffix
+        return {
+          id: index,
+          originalContent: line,
+          isTranslatable: true,
+          prefix: match[1] || '',
+          text: match[2] || '',
+          suffix: match[3] || '',
+          parts: [{ isTranslatable: true, text: match[2] || '' }]
+        };
+      }
     }
 
     // Default: Non-translatable (headers, empty lines, or different types)

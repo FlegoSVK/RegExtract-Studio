@@ -3,8 +3,9 @@ import { Button } from './components/Button';
 import { StepCard } from './components/StepCard';
 import { parseFileContent, generateExportText, generateMergedFile } from './services/parser';
 import { generateRegexFromManualSelection } from './services/regexBuilder';
+import { ManualAnalysisModal } from './components/ManualAnalysisModal';
 import { ProjectMap } from './types';
-import { Upload, Download, RefreshCw, FileText, Check, Code, Search, Save, Trash2, Maximize, Minimize } from 'lucide-react';
+import { Upload, Download, RefreshCw, FileText, Check, Code, Search, Save, Trash2, Maximize, Minimize, Sparkles, Layers, Sliders, Play } from 'lucide-react';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
@@ -287,6 +288,24 @@ const App: React.FC = () => {
     if (manualFileInputRef.current) manualFileInputRef.current.value = '';
   };
 
+  const handleOpenManualAnalysis = () => {
+    setIsUnityMode(false);
+    setIsCsvMode(false);
+    setIsUe5Mode(false);
+    if (selectedFile) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target?.result as string;
+        setManualLines(content.split(/\r?\n/));
+        setIsManualMode(true);
+        setManualMarks({});
+      };
+      reader.readAsText(selectedFile, encoding);
+    } else {
+      manualFileInputRef.current?.click();
+    }
+  };
+
   const scanUe5Languages = (content: string) => {
     try {
       const jsonData = JSON.parse(content);
@@ -332,163 +351,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleMarkSelection = (type: 'translatable' | 'technical' | 'clear') => {
-    const selection = window.getSelection();
-    if (!selection || selection.isCollapsed) return;
 
-    const range = selection.getRangeAt(0);
-    
-    const getLineElement = (node: Node | null): HTMLElement | null => {
-      let current = node;
-      while (current && current !== document.body) {
-        if (current instanceof HTMLElement && current.dataset.contentIndex) {
-          return current;
-        }
-        current = current.parentNode;
-      }
-      return null;
-    };
-
-    const startLineEl = getLineElement(range.startContainer);
-    const endLineEl = getLineElement(range.endContainer);
-
-    if (!startLineEl || !endLineEl) return;
-
-    const startLineIdx = parseInt(startLineEl.dataset.contentIndex!, 10);
-    const endLineIdx = parseInt(endLineEl.dataset.contentIndex!, 10);
-
-    const minLineIdx = Math.min(startLineIdx, endLineIdx);
-    const maxLineIdx = Math.max(startLineIdx, endLineIdx);
-
-    const getAbsoluteOffset = (container: Node, offset: number, lineDiv: HTMLElement) => {
-      let absoluteOffset = 0;
-      const walker = document.createTreeWalker(lineDiv, NodeFilter.SHOW_TEXT, null);
-      let currentNode = walker.nextNode();
-      while (currentNode) {
-        if (currentNode === container) {
-          absoluteOffset += offset;
-          break;
-        }
-        absoluteOffset += currentNode.nodeValue?.length || 0;
-        currentNode = walker.nextNode();
-      }
-      return absoluteOffset;
-    };
-
-    setManualMarks(prev => {
-      const next = { ...prev };
-      
-      for (let i = minLineIdx; i <= maxLineIdx; i++) {
-        let startOffset = 0;
-        let endOffset = manualLines[i].length;
-
-        if (i === minLineIdx) {
-          startOffset = getAbsoluteOffset(range.startContainer, range.startOffset, startLineEl);
-        }
-        if (i === maxLineIdx) {
-          endOffset = getAbsoluteOffset(range.endContainer, range.endOffset, endLineEl);
-        }
-
-        if (startOffset >= endOffset) continue;
-
-        const text = manualLines[i].substring(startOffset, endOffset);
-        if (text.length === 0) continue;
-
-        const currentMark = next[i] || { technical: [] };
-        const newMark = { text, start: startOffset, end: endOffset };
-
-        if (type === 'translatable') {
-           next[i] = { ...currentMark, translatable: [...(currentMark.translatable || []), newMark] };
-        } else if (type === 'technical') {
-           next[i] = { ...currentMark, technical: [...(currentMark.technical || []), newMark] };
-        } else if (type === 'clear') {
-           let newTranslatable = (currentMark.translatable || []).filter(t => 
-              !(Math.max(startOffset, t.start) < Math.min(endOffset, t.end))
-           );
-           
-           let newTechnical = (currentMark.technical || []).filter(t => 
-              !(Math.max(startOffset, t.start) < Math.min(endOffset, t.end))
-           );
-           
-           next[i] = { ...currentMark, translatable: newTranslatable, technical: newTechnical };
-        }
-      }
-      return next;
-    });
-    
-    selection.removeAllRanges();
-  };
-
-  const handleGenerateManualRegex = () => {
-    // Find the first line that has translatable marks
-    const firstMarkedEntry = Object.entries(manualMarks).find(([idx, mark]) => mark.translatable && mark.translatable.length > 0);
-    
-    if (!firstMarkedEntry) {
-      alert("Najprv označte aspoň jeden text na preklad.");
-      return;
-    }
-
-    const [idxStr, mark] = firstMarkedEntry;
-    const line = manualLines[parseInt(idxStr)];
-    
-    const translatableMarks = (mark.translatable || []).map(m => ({ ...m, type: 'translatable' as const }));
-    const technicalMarks = (mark.technical || []).map(m => ({ ...m, type: 'technical' as const }));
-
-    const suggestedRegex = generateRegexFromManualSelection(line, translatableMarks, technicalMarks);
-    
-    if (suggestedRegex) {
-      setIsCsvMode(false);
-      setRegexPattern(suggestedRegex);
-      setIsManualMode(false);
-    } else {
-      alert("Nepodarilo sa vygenerovať regulárny výraz z manuálneho výberu.");
-    }
-  };
-
-  const renderManualLine = (line: string, index: number) => {
-    const mark = manualMarks[index];
-    if (!mark) return <span className="text-gray-300">{line}</span>;
-
-    const parts: { start: number, end: number, type: string, text: string }[] = [];
-
-    mark.translatable?.forEach(trans => {
-      parts.push({ start: trans.start, end: trans.end, type: 'translatable', text: trans.text });
-    });
-
-    mark.technical?.forEach(tech => {
-      parts.push({ start: tech.start, end: tech.end, type: 'technical', text: tech.text });
-    });
-
-    parts.sort((a, b) => a.start - b.start);
-
-    const validParts = [];
-    let lastEnd = 0;
-    for (const p of parts) {
-      if (p.start >= lastEnd) {
-        validParts.push(p);
-        lastEnd = p.end;
-      }
-    }
-
-    if (validParts.length === 0) return <span className="text-gray-300">{line}</span>;
-
-    let elements: React.ReactNode[] = [];
-    let currentIdx = 0;
-    validParts.forEach((p, i) => {
-      if (p.start > currentIdx) {
-        elements.push(<span key={`text-${i}`} className="text-gray-300">{line.substring(currentIdx, p.start)}</span>);
-      }
-      const colorClass = p.type === 'translatable' ? 'bg-cyber-success/40 text-cyber-success px-1 rounded' : 'bg-orange-500/40 text-orange-400 px-1 rounded';
-      elements.push(<span key={`mark-${i}`} className={colorClass}>{p.text}</span>);
-      currentIdx = p.end;
-    });
-
-    if (currentIdx < line.length) {
-      elements.push(<span key="end" className="text-gray-300">{line.substring(currentIdx)}</span>);
-    }
-
-    return <>{elements}</>;
-  };
 
 
 
@@ -618,12 +481,12 @@ const App: React.FC = () => {
         // Save clean text to zip
         const cleanFileName = `${map.fileName.replace(/\.[^/.]+$/, "")}_clean_lines.txt`;
         const cleanBlobPart = encodeText(cleanText, encoding);
-        zip.file(cleanFileName, cleanBlobPart as BlobPart);
+        zip.file(cleanFileName, cleanBlobPart as any);
 
         // Save map to zip
         const mapFileName = `${map.fileName}.map.json`;
         const mapBlobPart = encodeText(JSON.stringify(map, null, 2), 'utf-8');
-        zip.file(mapFileName, mapBlobPart as BlobPart);
+        zip.file(mapFileName, mapBlobPart as any);
 
         processedCount++;
       }
@@ -705,7 +568,7 @@ const App: React.FC = () => {
           const ext = projectMap.fileName.split('.').pop() || 'txt';
           const mergedFileName = `localized_${projectMap.fileName}`;
           const blobPart = encodeText(mergedContent, projectMap.encoding || 'utf-8');
-          zip.file(mergedFileName, blobPart as BlobPart);
+          zip.file(mergedFileName, blobPart as any);
           
           processedCount++;
         }
@@ -892,126 +755,79 @@ const App: React.FC = () => {
   const filteredProfiles = gameProfiles.filter(p => p.name.toLowerCase().includes(profileSearchQuery.toLowerCase()));
 
   return (
-    <div className="min-h-screen bg-cyber-900 text-cyber-text font-sans selection:bg-cyber-accent selection:text-white pb-12">
-      {/* Header */}
-      <header className="border-b border-cyber-700 bg-cyber-800 py-6">
-        <div className="container mx-auto px-6 flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-white tracking-wide">RegExtract <span className="text-cyber-accent">Studio</span></h1>
-            <p className="text-sm text-gray-400 mt-1">Rozdeľ, prelož a spoj lokalizačné súbory hier pomocou Regexu</p>
-            <p className="text-xs text-cyber-accent mt-1">Vytvoril: Flego</p>
+    <div className="min-h-screen bg-[#070b14] text-slate-200 font-sans selection:bg-cyan-500/30 selection:text-white pb-16">
+      {/* Top Navigation Bar (Zone 1 - Zone 2 - Zone 3) */}
+      <header className="border-b border-slate-800 bg-[#0a0f1d]/90 backdrop-blur-md sticky top-0 z-40">
+        <div className="container mx-auto px-6 h-16 flex items-center justify-between gap-8">
+          {/* Zone 1: Brand Wordmark */}
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 font-bold font-mono">
+              RE
+            </div>
+            <div>
+              <span className="text-lg font-bold tracking-tight text-white whitespace-nowrap">
+                RegExtract <span className="text-cyan-400">Studio</span>
+              </span>
+            </div>
           </div>
-          {step > 1 && (
-             <Button variant="secondary" onClick={reset} icon={<RefreshCw size={18} />} title="Vymaže aktuálny postup a vráti vás na začiatok na Krok 1">
-               Začať odznova
-             </Button>
-          )}
+
+          {/* Zone 2: Step Flow Links */}
+          <nav className="hidden md:flex items-center gap-6 text-xs font-medium text-slate-400">
+            <span className={`whitespace-nowrap transition-colors ${step === 1 ? 'text-cyan-400 font-semibold' : ''}`}>
+              1. Výber súboru & Profil
+            </span>
+            <span className="text-slate-600">/</span>
+            <span className={`whitespace-nowrap transition-colors ${step === 2 ? 'text-cyan-400 font-semibold' : ''}`}>
+              2. Konfigurácia extrakcie
+            </span>
+            <span className="text-slate-600">/</span>
+            <span className={`whitespace-nowrap transition-colors ${step === 3 ? 'text-cyan-400 font-semibold' : ''}`}>
+              3. Náhľad & Export
+            </span>
+            <span className="text-slate-600">/</span>
+            <span className={`whitespace-nowrap transition-colors ${step === 4 ? 'text-cyan-400 font-semibold' : ''}`}>
+              4. Zloženie prekladu
+            </span>
+          </nav>
+
+          {/* Zone 3: Primary Action */}
+          <div className="flex items-center gap-3 shrink-0">
+            {step > 1 ? (
+              <Button 
+                variant="secondary" 
+                onClick={reset} 
+                icon={<RefreshCw size={14} />} 
+                className="text-xs py-1.5 px-3"
+                title="Vymaže aktuálny postup a vráti vás na začiatok na Krok 1"
+              >
+                Začať odznova
+              </Button>
+            ) : (
+              <span className="text-xs font-mono text-slate-500 hidden sm:inline">
+                Offline Zero-Server Engine
+              </span>
+            )}
+          </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-6 py-10 max-w-4xl space-y-8">
+      <main className="container mx-auto px-6 py-10 max-w-5xl space-y-8">
         
-        {isManualMode && (
-          <div className={`fixed inset-0 bg-black/80 z-50 flex items-center justify-center ${isManualFullscreen ? 'p-0' : 'p-4'}`}>
-            <div className={`bg-cyber-800 flex flex-col border border-cyber-600 shadow-2xl transition-all duration-200 ${isManualFullscreen ? 'w-full h-full rounded-none border-0' : 'w-full max-w-5xl max-h-[90vh] rounded-xl'}`}>
-              <div className={`p-4 border-b border-cyber-700 flex justify-between items-center bg-cyber-900/50 ${isManualFullscreen ? '' : 'rounded-t-xl'}`}>
-                <h3 className="text-lg font-bold text-white flex items-center">
-                  <Search className="mr-2 text-cyber-accent" size={20} />
-                  Manuálna Analýza
-                </h3>
-                <div className="flex gap-2 items-center">
-                  <button 
-                    onClick={() => setIsManualFullscreen(!isManualFullscreen)}
-                    className="p-2 text-gray-400 hover:text-white hover:bg-cyber-700 rounded transition-colors"
-                    title={isManualFullscreen ? "Zmenšiť" : "Na celú obrazovku"}
-                  >
-                    {isManualFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
-                  </button>
-                  <Button variant="secondary" onClick={() => setIsManualMode(false)} title="Zatvoriť okno manuálnej analýzy">Zrušiť</Button>
-                  <Button onClick={handleGenerateManualRegex} title="Z vyznačenej vzorky vygeneruje a automaticky nastaví Regex pre extrakciu vášho formátu">
-                    Vygenerovať Regex
-                  </Button>
-                </div>
-              </div>
-              
-              <div className="p-4 bg-cyber-900/30 border-b border-cyber-700 flex flex-wrap gap-4 items-center justify-between">
-                <div className="flex flex-wrap gap-2">
-                  <button onClick={() => handleMarkSelection('technical')} className="px-3 py-1.5 bg-orange-500/20 text-orange-400 border border-orange-500/50 rounded text-sm hover:bg-orange-500/30 transition-colors" title="Myšou si vyznačte v texte časť, ktorú nechcete prekladať (formátovanie, premenné) a kliknite tu.">
-                    Označiť Technickú časť (Oranžová)
-                  </button>
-                  <button onClick={() => handleMarkSelection('translatable')} className="px-3 py-1.5 bg-cyber-success/20 text-cyber-success border border-cyber-success/50 rounded text-sm hover:bg-cyber-success/30 transition-colors" title="Myšou si vyznačte v texte tú časť, ktorú chcete poslať prekladačom, a následne kliknite tu.">
-                    Označiť Text na preklad (Zelená)
-                  </button>
-                  <button onClick={() => handleMarkSelection('clear')} className="px-3 py-1.5 bg-red-500/20 text-red-400 border border-red-500/50 rounded text-sm hover:bg-red-500/30 transition-colors" title="Myšou prejdite cez zle označené miesto a kliknutím vymažte označenie">
-                    Zrušiť označenie výberu
-                  </button>
-                  <button onClick={() => setManualMarks({})} className="px-3 py-1.5 bg-gray-500/20 text-gray-400 border border-gray-500/50 rounded text-sm hover:bg-gray-500/30 transition-colors" title="Odstráni všetky doterajšie manuálne značky z okna">
-                    Vymazať všetko
-                  </button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-400">Zobraziť riadkov:</span>
-                  {[50, 100, 500, 1000].map(count => (
-                    <button 
-                      key={count}
-                      onClick={() => setManualViewCount(count)}
-                      className={`px-2 py-1 text-xs rounded border ${manualViewCount === count ? 'bg-cyber-accent/20 border-cyber-accent text-cyber-accent' : 'bg-cyber-800 border-cyber-600 text-gray-400 hover:border-gray-500'}`}
-                    >
-                      {count}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex-1 overflow-auto p-4 font-mono text-sm leading-relaxed whitespace-pre selection:bg-cyber-accent\/30 selection:text-white">
-                {manualLines.slice(manualViewStart, manualViewStart + manualViewCount).map((line, idx) => {
-                  const actualIndex = manualViewStart + idx;
-                  return (
-                    <div key={actualIndex} className="hover:bg-cyber-700/30 px-2 py-0.5 rounded -mx-2 flex">
-                      <span className="text-gray-600 select-none mr-4 inline-block w-8 text-right shrink-0">{actualIndex + 1}</span>
-                      <div className="flex-1" data-content-index={actualIndex}>
-                        {renderManualLine(line, actualIndex)}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className={`p-4 border-t border-cyber-700 flex justify-between items-center bg-cyber-900/50 ${isManualFullscreen ? '' : 'rounded-b-xl'}`}>
-                <div className="flex gap-2">
-                  <Button variant="secondary" onClick={() => handleManualViewChange(-1000)} disabled={manualViewStart === 0}>-1000</Button>
-                  <Button variant="secondary" onClick={() => handleManualViewChange(-500)} disabled={manualViewStart === 0}>-500</Button>
-                  <Button variant="secondary" onClick={() => handleManualViewChange(-100)} disabled={manualViewStart === 0}>-100</Button>
-                  <Button variant="secondary" onClick={() => handleManualViewChange(-50)} disabled={manualViewStart === 0}>-50</Button>
-                </div>
-                <div className="flex flex-col items-center gap-2">
-                  <span className="text-sm text-gray-400">
-                    Riadky {manualViewStart + 1} - {Math.min(manualViewStart + manualViewCount, manualLines.length)} z {manualLines.length}
-                  </span>
-                  <form onSubmit={handleGoToLineSubmit} className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min="1"
-                      max={manualLines.length}
-                      value={goToLineInput}
-                      onChange={(e) => setGoToLineInput(e.target.value)}
-                      placeholder="Choď na riadok..."
-                      className="bg-cyber-800 border border-cyber-700 rounded px-2 py-1 text-sm text-white w-32 focus:outline-none focus:border-neon-blue"
-                    />
-                    <Button type="submit" variant="secondary" className="px-3 py-1 h-auto text-sm">Choď</Button>
-                  </form>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="secondary" onClick={() => handleManualViewChange(50)} disabled={manualViewStart + manualViewCount >= manualLines.length}>+50</Button>
-                  <Button variant="secondary" onClick={() => handleManualViewChange(100)} disabled={manualViewStart + manualViewCount >= manualLines.length}>+100</Button>
-                  <Button variant="secondary" onClick={() => handleManualViewChange(500)} disabled={manualViewStart + manualViewCount >= manualLines.length}>+500</Button>
-                  <Button variant="secondary" onClick={() => handleManualViewChange(1000)} disabled={manualViewStart + manualViewCount >= manualLines.length}>+1000</Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Split-Screen Manual Analysis Modal */}
+        <ManualAnalysisModal
+          isOpen={isManualMode}
+          onClose={() => setIsManualMode(false)}
+          lines={manualLines}
+          initialMarks={manualMarks}
+          onApplyRegex={(pattern: string) => {
+            setIsCsvMode(false);
+            setIsUnityMode(false);
+            setIsUe5Mode(false);
+            setRegexPattern(pattern);
+            setIsManualMode(false);
+          }}
+        />
 
         {/* Step 1: Import */}
         <StepCard 
@@ -1323,20 +1139,30 @@ const App: React.FC = () => {
                       />
                       <div className="flex flex-col gap-2">
                         <Button 
-                          variant="secondary" 
-                          onClick={() => { setIsUnityMode(false); setIsCsvMode(false); manualFileInputRef.current?.click(); }} 
-                          className="w-full justify-center text-xs"
-                          title="Otvorí vizuálny analyzátor pre označenie textu (zelená) a technických častí (oranžová)"
+                          onClick={handleOpenManualAnalysis} 
+                          className="w-full justify-center text-xs bg-cyan-500/15 border-cyan-500/50 text-cyan-300 hover:bg-cyan-500/25 flex items-center gap-2"
+                          title="Otvorí vizuálny split-screen analyzátor s 3 stratégiami tvorby Regexu a živou diagnostikou zhôd"
                         >
-                          Manuálna Analýza (Generátor)
+                          <Sparkles size={14} className="text-cyan-400" />
+                          {selectedFile ? `Manuálna Analýza (${selectedFile.name})` : 'Manuálna Analýza & Tvorba Regexu'}
                         </Button>
+                        {selectedFile && (
+                          <Button 
+                            variant="secondary"
+                            onClick={() => manualFileInputRef.current?.click()}
+                            className="w-full justify-center text-xs"
+                            title="Vybrať iný vzorový súbor na manuálnu analýzu"
+                          >
+                            Analyzovať iný vzorový súbor
+                          </Button>
+                        )}
                         <Button 
                           variant="secondary" 
-                          onClick={() => { setIsUnityMode(true); setIsCsvMode(false); }} 
+                          onClick={() => { setIsUnityMode(true); setIsCsvMode(false); setIsUe5Mode(false); }} 
                           className="w-full justify-center text-xs border-dashed"
                           title="Prepne do režimu konfigurácie pre textové exporty z Unity módov (napríklad I2Languages)"
                         >
-                          Manuálna Analýza (Generátor) Unity
+                          Režim Unity (I2Languages)
                         </Button>
                       </div>
                     </div>
@@ -1542,16 +1368,34 @@ const App: React.FC = () => {
                 <h5 className="text-xs uppercase text-gray-500 font-bold mb-2 tracking-wider">Náhľad analýzy zdrojového súboru</h5>
                 <div className="font-mono text-sm space-y-1 h-[400px] overflow-y-auto custom-scrollbar">
                   {projectMap.lines.slice(0, 200).map((line) => (
-                    <div key={line.id} className="flex">
-                      <span className="text-gray-600 w-12 text-right mr-4 select-none">{line.id + 1}</span>
+                    <div key={line.id} className="flex hover:bg-slate-800/40 px-1 py-0.5 rounded">
+                      <span className="text-slate-600 w-12 text-right mr-4 select-none font-mono shrink-0">{line.id + 1}</span>
                       {line.isTranslatable ? (
-                        <span className="text-cyber-success truncate">
-                          <span className="text-gray-500 opacity-50">{line.prefix.replace(/\\t/g, '→')}</span>
-                          <span className="bg-cyber-success/20 text-cyber-success px-1 rounded">{line.text}</span>
-                          <span className="text-gray-500 opacity-50">{line.suffix.replace(/\\t/g, '→')}</span>
+                        <span className="truncate">
+                          {line.parts && line.parts.length > 0 ? (
+                            <>
+                              <span className="text-slate-500 opacity-60">{line.prefix.replace(/\t/g, '→')}</span>
+                              {line.parts.map((p, pIdx) => (
+                                p.isTranslatable ? (
+                                  <span key={pIdx} className="bg-emerald-500/20 text-emerald-300 px-1 py-0.5 rounded font-medium mx-0.5">
+                                    {p.text}
+                                  </span>
+                                ) : (
+                                  <span key={pIdx} className="text-slate-500 opacity-60">{p.text.replace(/\t/g, '→')}</span>
+                                )
+                              ))}
+                              <span className="text-slate-500 opacity-60">{line.suffix.replace(/\t/g, '→')}</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-slate-500 opacity-60">{line.prefix.replace(/\t/g, '→')}</span>
+                              <span className="bg-emerald-500/20 text-emerald-300 px-1 py-0.5 rounded font-medium">{line.text}</span>
+                              <span className="text-slate-500 opacity-60">{line.suffix.replace(/\t/g, '→')}</span>
+                            </>
+                          )}
                         </span>
                       ) : (
-                        <span className="text-gray-600 italic truncate">{line.originalContent}</span>
+                        <span className="text-slate-600 italic truncate">{line.originalContent}</span>
                       )}
                     </div>
                   ))}

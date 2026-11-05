@@ -12,12 +12,12 @@ export const Button: React.FC<ButtonProps> = ({
   className = '', 
   ...props 
 }) => {
-  const baseStyles = "inline-flex items-center justify-center px-4 py-2 rounded font-medium transition-all duration-300 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed border";
+  const baseStyles = "inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 disabled:opacity-40 disabled:cursor-not-allowed border whitespace-nowrap shrink-0";
   
   const variants = {
-    primary: "bg-cyber-900 border-cyber-accent text-cyber-accent hover:bg-cyber-accent hover:text-cyber-900 hover:shadow-neon-cyan focus:shadow-neon-cyan",
-    secondary: "bg-cyber-800 border-cyber-700 text-cyber-text hover:border-cyber-accent hover:text-cyber-accent focus:border-cyber-accent",
-    danger: "bg-cyber-900 border-red-500 text-red-500 hover:bg-red-500 hover:text-white hover:shadow-[0_0_10px_rgba(239,68,68,0.5)] focus:shadow-[0_0_10px_rgba(239,68,68,0.5)]",
+    primary: "bg-cyan-500 hover:bg-cyan-400 active:bg-cyan-600 border-cyan-400 text-slate-950 font-semibold shadow-sm hover:shadow-cyan-500/25",
+    secondary: "bg-[#0d1629] hover:bg-[#13203c] active:bg-[#18284b] border-slate-700 text-slate-200 hover:text-white hover:border-slate-600",
+    danger: "bg-rose-500/15 hover:bg-rose-500/25 active:bg-rose-500/35 border-rose-500/40 text-rose-300 hover:text-rose-100",
   };
 
   return (
@@ -25,7 +25,7 @@ export const Button: React.FC<ButtonProps> = ({
       className={`${baseStyles} ${variants[variant]} ${className}`}
       {...props}
     >
-      {icon && <span className="mr-2">{icon}</span>}
+      {icon && <span className="mr-1.5 shrink-0">{icon}</span>}
       {children}
     </button>
   );
